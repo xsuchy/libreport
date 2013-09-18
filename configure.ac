@@ -235,6 +235,36 @@ else
 AM_CONDITIONAL(BUILD_NEWT, false)
 fi dnl end NO_NEWT
 
+AC_ARG_WITH(rhtsupport,
+AS_HELP_STRING([--with-rhtsupport],[use RHTSupport plugin (default is YES)]),
+LIBREPORT_PARSE_WITH([rhtsupport]))
+if test -z "$NO_RHTSUPPORT"; then
+AM_CONDITIONAL(BUILD_RHTSUPPORT, true)
+# enable rht & deps translations
+for FILE in `grep -i -e "#.*rhtsupport.*" po/POTFILES.in`
+do
+  sed -ie "s,$FILE,${FILE:1}," po/POTFILES.in
+  sed -ie "\,^${FILE:1}$,d" po/POTFILES.skip
+done
+else
+AM_CONDITIONAL(BUILD_RHTSUPPORT, false)
+# disable rhtsupport & deps translations
+for FILE in `grep -i -e "rhtsupport" po/POTFILES.in`
+do
+  if test "${FILE:0:1}" = "#"
+  then
+    continue
+  fi
+
+  sed -ie "s,$FILE,#$FILE," po/POTFILES.in
+  grep "$FILE" po/POTFILES.skip > /dev/null 2>&1
+  if test $?
+  then
+    echo "$FILE" >> po/POTFILES.skip
+  fi
+done
+fi dnl end NO_RHTSUPPORT
+
 AC_ARG_WITH(gtk,
 AS_HELP_STRING([--with-gtk],[use gtk wizard and libreport-gtk (default is YES)]),
 LIBREPORT_PARSE_WITH([gtk]))
