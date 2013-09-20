@@ -4,16 +4,20 @@
 
 %if 0%{?suse_version}
   %bcond_with bugzilla
+  %bcond_with rhtsupport
 
   %define dbus_devel dbus-1-devel
   %define nss_devel mozilla-nss-devel
   %define libjson_devel libjson-devel
+  %define pygobject_gtk3 python-gobject-cairo
 %else
   %bcond_without bugzilla
+  %bcond_without rhtsupport
 
   %define dbus_devel dbus-devel
   %define nss_devel nss-devel
   %define libjson_devel json-c-devel
+  %define pygobject_gtk3 pygobject3
 %endif
 
 Summary: Generic library for reporting various problems
@@ -233,6 +237,7 @@ Requires: python-rhsm
 %description plugin-ureport
 Uploads micro-report to abrt server
 
+%if %{with rhtsupport}
 %package plugin-rhtsupport
 Summary: %{name}'s RHTSupport plugin
 Group: System Environment/Libraries
@@ -244,6 +249,7 @@ Requires: redhat-access-insights
 
 %description plugin-rhtsupport
 Plugin to report bugs into RH support system.
+%endif
 
 %if %{with bugzilla}
 %package compat
@@ -338,7 +344,10 @@ autoconf
 
 CFLAGS="%{optflags} -Werror" %configure \
 %if %{without bugzilla}
-        --without-bugzilla \
+        --with-bugzilla=no \
+%endif
+%if %{without rhtsupport}
+        --with-rhtsupport=no \
 %endif
 %if 0%{?rhel:%{rhel} < 7}%{?fedora:%{fedora} < 18}
         --with-defaultdumpdirmode=0640 \
@@ -656,6 +665,7 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %config(noreplace) %{_sysconfdir}/libreport/events.d/centos_report_event.conf
 %{_mandir}/man5/centos_report_event.conf.5.gz
 
+%if %{with rhtsupport}
 %files plugin-rhtsupport
 %defattr(-,root,root,-)
 %config(noreplace) %{_sysconfdir}/libreport/plugins/rhtsupport.conf
@@ -667,6 +677,7 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_mandir}/man5/rhtsupport.conf.5.*
 %{_mandir}/man5/rhtsupport_event.conf.5.*
 %{_bindir}/reporter-rhtsupport
+%endif
 
 %if %{with bugzilla}
 %files compat
