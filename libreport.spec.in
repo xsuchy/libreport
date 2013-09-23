@@ -480,9 +480,10 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %dir %{_sysconfdir}/%{name}/
 %dir %{_sysconfdir}/%{name}/events.d/
 %dir %{_sysconfdir}/%{name}/events/
+%dir %{_sysconfdir}/%{name}/plugins/
+%dir %{_datadir}/%{name}/
 %dir %{_datadir}/%{name}/events/
 %dir %{_datadir}/%{name}/workflows/
-%dir %{_sysconfdir}/%{name}/plugins/
 
 %files devel
 %defattr(-,root,root,-)
