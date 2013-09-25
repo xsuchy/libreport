@@ -293,8 +293,37 @@ else
 AM_CONDITIONAL(BUILD_UREPORT, false)
 JSON_C_PACKAGE=
 fi dnl end NO_UREPORT
-
 AC_SUBST([JSON_C_PACKAGE])
+
+AC_ARG_WITH(opensuse_support,
+    AS_HELP_STRING([--with-opensuse-support],[build openSUSE specific features (default is YES)]),
+	[], [with_opensuse_support=yes])
+if test "x$with_opensuse_support" = xyes; then
+AM_CONDITIONAL(OPENSUSE_SUPPORT, true)
+# enable SUSE & deps translations
+for FILE in `grep -i -e "#.*openSUSE.*" po/POTFILES.in`
+do
+  sed -ie "s,$FILE,${FILE:1}," po/POTFILES.in
+  sed -ie "\,^${FILE:1}$,d" po/POTFILES.skip
+done
+else
+AM_CONDITIONAL(OPENSUSE_SUPPORT, false)
+# disable rhtsupport & deps translations
+for FILE in `grep -i -e "openSUSE" po/POTFILES.in`
+do
+  if test "${FILE:0:1}" = "#"
+  then
+    continue
+  fi
+
+  sed -ie "s,$FILE,#$FILE," po/POTFILES.in
+  grep "$FILE" po/POTFILES.skip > /dev/null 2>&1
+  if test $?
+  then
+    echo "$FILE" >> po/POTFILES.skip
+  fi
+done
+fi dnl end OPENSUSE_SUPPORT
 
 PKG_PROG_PKG_CONFIG
 

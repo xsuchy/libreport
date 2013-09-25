@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<workflow>
+    <_name>Report to openSUSE</_name>
+    <_description>Process the X Server problem using the openSUSE infrastructure</_description>
+
+    <events>
+        <event>report_Mailx</event>
+    </events>
+</workflow>

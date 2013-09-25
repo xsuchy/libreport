@@ -82,6 +82,10 @@ MAN5_PREFORMATTED += centos_report_event.conf.5
 endif
 
 
+if OPENSUSE_SUPPORT
+MAN5_TXT += report_opensuse.conf.txt
+endif
+
 # Manual pages are generated from .txt via Docbook
 man1_MANS = ${MAN1_TXT:%.txt=%.1}
 man5_MANS = ${MAN5_TXT:%.txt=%.5} ${MAN5_PREFORMATTED}

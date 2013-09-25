@@ -35,6 +35,15 @@ dist_workflows_DATA += \
     workflow_CentOSJava.xml
 endif
 
+if OPENSUSE_SUPPORT
+dist_workflows_DATA += \
+    workflow_openSUSECCpp.xml \
+    workflow_openSUSEKerneloops.xml \
+    workflow_openSUSEPython.xml \
+    workflow_openSUSEVmcore.xml \
+    workflow_openSUSEXorg.xml
+endif
+
 if BUILD_BUGZILLA
 dist_workflows_DATA += \
     workflow_AnacondaFedora.xml \
@@ -59,6 +68,11 @@ dist_workflowsdef_DATA =\
     report_logger.conf \
     report_uploader.conf \
     report_centos.conf
+
+if OPENSUSE_SUPPORT
+dist_workflowsdef_DATA += \
+    report_opensuse.conf
+endif
 
 if BUILD_BUGZILLA
 dist_workflowsdef_DATA += \
@@ -91,6 +105,15 @@ EXTRA_DIST = \
     workflow_Logger.xml.in \
     workflow_LoggerCCpp.xml.in
 
+
+if OPENSUSE_SUPPORT
+EXTRA_DIST += \
+    workflow_openSUSECCpp.xml.in \
+    workflow_openSUSEKerneloops.xml.in \
+    workflow_openSUSEPython.xml.in \
+    workflow_openSUSEVmcore.xml.in \
+    workflow_openSUSEXorg.xml.in
+endif
 
 if BUILD_BUGZILLA
 EXTRA_DIST += \

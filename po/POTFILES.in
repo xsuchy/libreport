@@ -97,3 +97,8 @@ src/workflows/workflow_RHELBugzillaVmcore.xml.in
 src/workflows/workflow_RHELBugzillaXorg.xml.in
 src/workflows/workflow_RHELBugzillaLibreport.xml.in
 src/workflows/workflow_RHELBugzillaJava.xml.in
+src/workflows/workflow_openSUSECCpp.xml.in
+src/workflows/workflow_openSUSEKerneloops.xml.in
+src/workflows/workflow_openSUSEPython.xml.in
+src/workflows/workflow_openSUSEVmcore.xml.in
+src/workflows/workflow_openSUSEXorg.xml.in

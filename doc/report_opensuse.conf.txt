@@ -1,0 +1,37 @@
+report_opensuse.conf(5)
+=====================
+
+NAME
+----
+report_opensuse.conf - configuration file for libreport.
+
+DESCRIPTION
+-----------
+This configuration file specifies which of the reporting work flow definitions
+are applicable for all problems types on openSUSE.
+
+This configuration file consists from one condition per line.
+
+Each condition line must start with EVENT=workflow_NAME where "workflow_" is
+constant prefix and "workflow_NAME" is base name of path to reporting work flow
+configuration file.
+
+The rest of condition line has form VAR=VAL, VAR!=VAL or VAL~=REGEX, where VAR
+is a name of problem directory element to be checked (for example,
+"executable", "package", hostname" etc). The condition may consists
+from as many element checks as it is necessary.
+
+EXAMPLES
+--------
+Condition line::
+    EVENT=workflow_openSUSE analyzer=CCpp
+
+The condition line above expects existence of /usr/share/libreport/workflows/workflow_openSUSECCpp.xml
+
+SEE ALSO
+--------
+report-gtk(1)
+
+AUTHOR
+------
+* ABRT team
