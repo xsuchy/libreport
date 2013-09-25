@@ -393,6 +393,12 @@ fi
 
 AM_CONDITIONAL(DOXYGEN_DOCS_ENABLED, test "$enable_doxygen_docs" = "yes")
 
+AC_ARG_WITH(mail,
+            [AS_HELP_STRING([--with-mail=PATH],
+                           [Path to mail executable (default: /bin/mail)])],
+            [], [with_mail="/bin/mail"])
+AC_SUBST([MAIL_EXE_PATH], [$with_mail])
+
 AC_SUBST(CONF_DIR)
 AC_SUBST(DEFAULT_CONF_DIR)
 AC_SUBST(VAR_RUN)
