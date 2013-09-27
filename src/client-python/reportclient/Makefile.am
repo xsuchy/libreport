@@ -2,7 +2,8 @@ PYFILES = \
     __init__.py \
     debuginfo.py \
     dnfdebuginfo.py \
-    yumdebuginfo.py
+    yumdebuginfo.py \
+    zyppdebuginfo.py
 
 py2clientdir = $(pyexecdir)/reportclient
 py3clientdir = $(py3execdir)/reportclient
