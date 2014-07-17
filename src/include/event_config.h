@@ -80,6 +80,7 @@ typedef struct
     long  ec_minimal_rating;
     bool  ec_skip_review;
     bool  ec_sending_sensitive_data;
+    bool  ec_accept_comment;
 
     GList *ec_imported_event_names;
     GList *options;

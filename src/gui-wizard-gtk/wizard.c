@@ -60,6 +60,7 @@ static pid_t g_event_child_pid = 0;
 static guint g_event_source_id = 0;
 
 static bool g_expert_mode;
+static bool g_comment_edited;
 
 static GtkNotebook *g_assistant;
 static GtkWindow *g_wnd_assistant;
@@ -1741,6 +1742,14 @@ static bool event_need_review(const char *event_name)
     return !event_cfg || !event_cfg->ec_skip_review;
 }
 
+static bool event_accept_comment(const char *event_name)
+{
+    event_config_t *event_cfg = get_event_config(event_name);
+    /* Need review or accepts */
+    const bool ret = (!event_cfg || !event_cfg->ec_skip_review) || (event_cfg && event_cfg->ec_accept_comment);
+    return ret;
+}
+
 static void on_btn_failed_cb(GtkButton *button)
 {
     /* Since the Repeat button has been introduced, the event chain isn't
@@ -2729,11 +2738,22 @@ static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, gpointer us
         gtk_widget_set_sensitive(g_btn_next, gtk_toggle_button_get_active(g_tb_approve_bt));
     }
 
+    gtk_button_set_label(GTK_BUTTON(g_btn_next), _("_Forward"));
+
     if (pages[PAGENO_EDIT_COMMENT].page_widget == page)
     {
+<<<<<<< HEAD
         gtk_widget_show(g_btn_detail);
+=======
+        g_comment_edited = true;
+>>>>>>> wizard: user comments
         gtk_widget_set_sensitive(g_btn_next, false);
         on_comment_changed(gtk_text_view_get_buffer(g_tv_comment), NULL);
+
+        if (!event_need_review(g_event_selected))
+        {
+            gtk_button_set_label(GTK_BUTTON(g_btn_next), _("_Send Report"));
+        }
     }
     //log_ready_state();
 
@@ -2760,6 +2780,7 @@ static void set_auto_event_chain(GtkButton *button, gpointer user_data)
 {
     //event is selected, so make sure the expert mode is disabled
     g_expert_mode = false;
+    g_comment_edited = false;
 
     workflow_t *w = (workflow_t *)user_data;
     config_item_info_t *info = workflow_get_config_info(w);
@@ -2922,11 +2943,21 @@ static gint select_next_page_no(gint current_page_no, gpointer data)
              * because it does exactly the same thing
              * but I'm pretty scared to touch it */
             current_page_no = pages[PAGENO_EVENT_SELECTOR].page_no + 1;
+            page = gtk_notebook_get_nth_page(g_assistant, current_page_no);
             goto event_was_selected;
         }
     }
 
-    if (pages[PAGENO_EVENT_SELECTOR + 1].page_widget == page)
+    if (pages[PAGENO_EDIT_COMMENT + 1].page_widget == page)
+    {
+        if (!event_need_review(g_event_selected))
+        {
+            current_page_no = pages[PAGENO_EVENT_PROGRESS].page_no - 1;
+            goto again;
+        }
+    }
+
+    if (pages[PAGENO_EDIT_COMMENT].page_widget == page)
     {
  event_was_selected:
         if (!g_event_selected)
@@ -2936,20 +2967,9 @@ static gint select_next_page_no(gint current_page_no, gpointer data)
             goto again;
         }
 
-        if (!event_need_review(g_event_selected))
-        {
-            current_page_no = pages[PAGENO_EVENT_PROGRESS].page_no - 1;
+        if (g_comment_edited || !event_accept_comment(g_event_selected))
             goto again;
-        }
     }
-
-#if 0
-    if (pages[PAGENO_EDIT_COMMENT].page_widget == page)
-    {
-        if (problem_data_get_content_or_NULL(g_cd, FILENAME_COMMENT))
-            goto again; /* no comment, skip this page */
-    }
-#endif
 
     if (pages[PAGENO_EVENT_DONE].page_widget == page)
     {
