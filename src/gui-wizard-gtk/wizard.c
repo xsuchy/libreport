@@ -1555,14 +1555,10 @@ static void hide_next_step_button()
     /* replace 'Forward' with 'Close' button */
     /* 1. hide next button */
     gtk_widget_hide(g_btn_next);
-    /* 2. move close button to the last position */
-    gtk_box_set_child_packing(g_box_buttons, g_btn_close, false, false, 5, GTK_PACK_END);
 }
 
 static void show_next_step_button()
 {
-    gtk_box_set_child_packing(g_box_buttons, g_btn_close, false, false, 5, GTK_PACK_START);
-
     gtk_widget_show(g_btn_next);
 }
 
@@ -2694,7 +2690,7 @@ static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, gpointer us
         clear_warnings();
     }
 
-    gtk_widget_hide(g_btn_detail);
+    /* TODO gtk_widget_hide(g_btn_detail); */
     gtk_widget_hide(g_btn_onfail);
     if (!g_expert_mode)
         gtk_widget_hide(g_btn_repeat);
@@ -2742,17 +2738,14 @@ static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, gpointer us
 
     if (pages[PAGENO_EDIT_COMMENT].page_widget == page)
     {
-<<<<<<< HEAD
-        gtk_widget_show(g_btn_detail);
-=======
+        /* TODO: gtk_widget_show(g_btn_detail); */
         g_comment_edited = true;
->>>>>>> wizard: user comments
         gtk_widget_set_sensitive(g_btn_next, false);
         on_comment_changed(gtk_text_view_get_buffer(g_tv_comment), NULL);
 
         if (!event_need_review(g_event_selected))
         {
-            gtk_button_set_label(GTK_BUTTON(g_btn_next), _("_Send Report"));
+            gtk_button_set_label(GTK_BUTTON(g_btn_next), _("_Send"));
         }
     }
     //log_ready_state();
@@ -3526,21 +3519,12 @@ void create_assistant(GtkApplication *app, bool expert_mode)
     gtk_widget_set_no_show_all(g_btn_detail, true); /* else gtk_widget_hide won't work */
 
     g_box_buttons = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
-    gtk_box_pack_start(g_box_buttons, g_btn_close, false, false, 5);
-    gtk_box_pack_start(g_box_buttons, g_btn_stop, false, false, 5);
-    gtk_box_pack_start(g_box_buttons, g_btn_onfail, false, false, 5);
-    gtk_box_pack_start(g_box_buttons, g_btn_repeat, false, false, 5);
-    /* Btns above are to the left, the rest are to the right: */
-#if ((GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION < 13) || (GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION == 13 && GTK_MICRO_VERSION < 5))
-    GtkWidget *w = gtk_alignment_new(0.0, 0.0, 1.0, 1.0);
-    gtk_box_pack_start(g_box_buttons, w, true, true, 5);
-    gtk_box_pack_start(g_box_buttons, g_btn_detail, false, false, 5);
-    gtk_box_pack_start(g_box_buttons, g_btn_next, false, false, 5);
-#else
-    gtk_widget_set_valign(GTK_WIDGET(g_btn_next), GTK_ALIGN_END);
+    /* TODO: gtk_box_pack_end(g_box_buttons, g_btn_detail, false, false, 5); */
     gtk_box_pack_end(g_box_buttons, g_btn_next, false, false, 5);
-    gtk_box_pack_end(g_box_buttons, g_btn_detail, false, false, 5);
-#endif
+    gtk_box_pack_end(g_box_buttons, g_btn_stop, false, false, 5);
+    gtk_box_pack_end(g_box_buttons, g_btn_repeat, false, false, 5);
+    gtk_box_pack_end(g_box_buttons, g_btn_onfail, false, false, 5);
+    gtk_box_pack_end(g_box_buttons, g_btn_close, false, false, 5);
 
     {   /* Warnings area widget definition start */
         g_box_warning_labels = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0));
@@ -3577,10 +3561,10 @@ void create_assistant(GtkApplication *app, bool expert_mode)
     }   /* Warnings area widget definition end */
 
     g_box_assistant = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0));
+    gtk_box_pack_start(g_box_assistant, GTK_WIDGET(g_box_buttons), false, false, 5);
     gtk_box_pack_start(g_box_assistant, GTK_WIDGET(g_assistant), true, true, 0);
 
     gtk_box_pack_start(g_box_assistant, GTK_WIDGET(g_widget_warnings_area), false, false, 0);
-    gtk_box_pack_start(g_box_assistant, GTK_WIDGET(g_box_buttons), false, false, 5);
 
     gtk_widget_show_all(GTK_WIDGET(g_box_buttons));
     gtk_widget_hide(g_btn_stop);
