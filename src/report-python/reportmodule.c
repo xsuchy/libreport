@@ -51,6 +51,8 @@ static PyMethodDef module_methods[] = {
     { "report_problem_in_dir"     , p_report_problem_in_dir   , METH_VARARGS },
     { "report_problem_in_memory"  , p_report_problem_in_memory, METH_VARARGS },
     { "report_problem"            , p_report_problem          , METH_VARARGS },
+    /* for include include/report/internal_libreport.h */
+    { "load_app_conf_file"        , p_load_app_conf_file      , METH_VARARGS },
     { NULL }
 };
 
