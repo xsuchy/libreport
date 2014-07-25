@@ -51,3 +51,5 @@ PyObject *p_delete_dump_dir(PyObject *pself, PyObject *args);
 PyObject *p_report_problem_in_dir(PyObject *pself, PyObject *args);
 PyObject *p_report_problem_in_memory(PyObject *pself, PyObject *args);
 PyObject *p_report_problem(PyObject *pself, PyObject *args);
+/* for include include/report/internal_libreport.h */
+PyObject *p_load_app_conf_file(PyObject *module, PyObject *args);

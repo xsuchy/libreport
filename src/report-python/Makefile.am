@@ -15,6 +15,7 @@ PYEXTFILES = \
     dump_dir.c \
     run_event.c \
     report.c \
+    user_settings.c \
     common.h
 
 PYEXTCPPFLAGS = \
