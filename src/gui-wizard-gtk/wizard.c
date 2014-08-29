@@ -71,7 +71,6 @@ static GtkWidget *g_btn_close;
 static GtkWidget *g_btn_next;
 static GtkWidget *g_btn_onfail;
 static GtkWidget *g_btn_repeat;
-static GtkWidget *g_btn_detail;
 
 static GtkBox *g_box_events;
 static GtkBox *g_box_workflows;
@@ -2690,7 +2689,6 @@ static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, gpointer us
         clear_warnings();
     }
 
-    /* TODO gtk_widget_hide(g_btn_detail); */
     gtk_widget_hide(g_btn_onfail);
     if (!g_expert_mode)
         gtk_widget_hide(g_btn_repeat);
@@ -2738,7 +2736,6 @@ static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, gpointer us
 
     if (pages[PAGENO_EDIT_COMMENT].page_widget == page)
     {
-        /* TODO: gtk_widget_show(g_btn_detail); */
         g_comment_edited = true;
         gtk_widget_set_sensitive(g_btn_next, false);
         on_comment_changed(gtk_text_view_get_buffer(g_tv_comment), NULL);
@@ -3316,6 +3313,9 @@ static void add_pages(void)
     g_btn_startcast        = GTK_BUTTON(    gtk_builder_get_object(g_builder, "btn_startcast"));
     g_exp_report_log       = GTK_EXPANDER(     gtk_builder_get_object(g_builder, "expand_report"));
 
+    GtkWidget *btn_detail  = GTK_WIDGET(gtk_builder_get_object(g_builder, "btn_detail"));
+    g_signal_connect(btn_detail, "clicked", G_CALLBACK(on_btn_detail), NULL);
+
     gtk_widget_set_no_show_all(GTK_WIDGET(g_spinner_event_log), true);
 
     gtk_widget_override_font(GTK_WIDGET(g_tv_event_log), g_monospace_font);
@@ -3515,11 +3515,8 @@ void create_assistant(GtkApplication *app, bool expert_mode)
     g_btn_next = gtk_button_new_with_mnemonic(_("_Forward"));
     gtk_button_set_image(GTK_BUTTON(g_btn_next), gtk_image_new_from_icon_name("go-next-symbolic", GTK_ICON_SIZE_BUTTON));
     gtk_widget_set_no_show_all(g_btn_next, true); /* else gtk_widget_hide won't work */
-    g_btn_detail = gtk_button_new_with_mnemonic(_("Details"));
-    gtk_widget_set_no_show_all(g_btn_detail, true); /* else gtk_widget_hide won't work */
 
     g_box_buttons = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
-    /* TODO: gtk_box_pack_end(g_box_buttons, g_btn_detail, false, false, 5); */
     gtk_box_pack_end(g_box_buttons, g_btn_next, false, false, 5);
     gtk_box_pack_end(g_box_buttons, g_btn_stop, false, false, 5);
     gtk_box_pack_end(g_box_buttons, g_btn_repeat, false, false, 5);
@@ -3603,7 +3600,6 @@ void create_assistant(GtkApplication *app, bool expert_mode)
     g_signal_connect(gtk_text_view_get_buffer(g_tv_comment), "changed", G_CALLBACK(on_comment_changed), NULL);
 
     g_signal_connect(g_btn_add_file, "clicked", G_CALLBACK(on_btn_add_file), NULL);
-    g_signal_connect(g_btn_detail, "clicked", G_CALLBACK(on_btn_detail), NULL);
 
     if (is_screencast_available()) {
         /* we need to override the activate-link handler, because we use
