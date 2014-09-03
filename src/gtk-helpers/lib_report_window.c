@@ -17,6 +17,7 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 #include "lib_report_window.h"
+#include "lib_report_window_gresource.h"
 #include "internal_libreport_gtk.h"
 #include "search_item.h"
 
@@ -214,7 +215,7 @@ G_DEFINE_TYPE(LibReportWindow, lib_report_window, GTK_TYPE_APPLICATION_WINDOW)
 static void start_event_run(LibReportWindow *self, const char *event_name);
 static void update_gui_state_from_problem_data(LibReportWindow *self, int flags);
 static gboolean highlight_forbidden(LibReportWindow *self);
-static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, gpointer user_data);
+static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, guint page_no, gpointer user_data);
 static gint select_next_page_no(LibReportWindow *self, gint current_page_no, gpointer data);
 static void update_ls_details_checkboxes(LibReportWindow *self, const char *event_name);
 static void clear_warnings(LibReportWindow *self);
@@ -281,10 +282,11 @@ make_gtk_builder()
     GtkBuilder *gtk_builder = gtk_builder_new();
     gtk_builder_set_translation_domain(gtk_builder, GETTEXT_PACKAGE);
 
-    gtk_builder_add_from_file(gtk_builder, LIBREPORT_UI_DIR "/" LIB_REPORT_WINDOW_UI_FILE_NAME, &error);
+    //gtk_builder_add_from_file(gtk_builder, LIBREPORT_GTK_UI_DIR "/" LIB_REPORT_WINDOW_UI_FILE_NAME, &error);
+    gtk_builder_add_from_resource(gtk_builder, "/org/freedesktop/libreport-gtk/lib-report-window.glade", &error);
     if(error != NULL)
     {
-        g_warning("Failed to load '%s': %s", LIBREPORT_UI_DIR "/" LIB_REPORT_WINDOW_UI_FILE_NAME, error->message);
+        g_warning("Failed to load '%s': %s", "/org/freedesktop/libreport-gtk/lib-report-window.glade", error->message);
         g_error_free(error);
         error = NULL;
 
@@ -312,13 +314,106 @@ lib_report_window_builder_new()
     if (inst->gtk_builder == NULL)
         return NULL;
 
-    int i;
-    int page_no = 0;
-    for (i = 0; page_names[i] != NULL; i++)
+    inst->assistant = GTK_NOTEBOOK(gtk_notebook_new());
+
+    inst->btn_close = gtk_button_new_with_mnemonic(_("_Close"));
+    gtk_button_set_image(GTK_BUTTON(inst->btn_close),
+            gtk_image_new_from_icon_name("window-close-symbolic", GTK_ICON_SIZE_BUTTON));
+
+    inst->btn_stop = gtk_button_new_with_mnemonic(_("_Stop"));
+    gtk_button_set_image(GTK_BUTTON(inst->btn_stop),
+            gtk_image_new_from_icon_name("process-close-symbolic", GTK_ICON_SIZE_BUTTON));
+    gtk_widget_set_no_show_all(inst->btn_stop, true); /* else gtk_widget_hide won't work */
+
+    inst->btn_onfail = gtk_button_new_with_label(_("Upload for analysis"));
+    gtk_button_set_image(GTK_BUTTON(inst->btn_onfail),
+            gtk_image_new_from_icon_name("go-up-symbolic", GTK_ICON_SIZE_BUTTON));
+    gtk_widget_set_no_show_all(inst->btn_onfail, true); /* else gtk_widget_hide won't work */
+
+    inst->btn_repeat = gtk_button_new_with_label(_("Repeat"));
+    gtk_widget_set_no_show_all(inst->btn_repeat, true); /* else gtk_widget_hide won't work */
+
+    inst->btn_next = gtk_button_new_with_mnemonic(_("_Forward"));
+    gtk_button_set_image(GTK_BUTTON(inst->btn_next),
+            gtk_image_new_from_icon_name("go-next-symbolic", GTK_ICON_SIZE_BUTTON));
+    gtk_widget_set_no_show_all(inst->btn_next, true); /* else gtk_widget_hide won't work */
+
+    inst->btn_detail = gtk_button_new_with_mnemonic(_("Details"));
+    gtk_widget_set_no_show_all(inst->btn_detail, true); /* else gtk_widget_hide won't work */
+
+    inst->box_buttons = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
+
+    gtk_box_pack_start(inst->box_buttons, inst->btn_close, false, false, 5);
+    gtk_box_pack_start(inst->box_buttons, inst->btn_stop, false, false, 5);
+    gtk_box_pack_start(inst->box_buttons, inst->btn_onfail, false, false, 5);
+    gtk_box_pack_start(inst->box_buttons, inst->btn_repeat, false, false, 5);
+    /* Btns above are to the left, the rest are to the right: */
+#if ((GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION < 13) || (GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION == 13 && GTK_MICRO_VERSION < 5))
+    GtkWidget *w = gtk_alignment_new(0.0, 0.0, 1.0, 1.0);
+    gtk_box_pack_start(inst->box_buttons, w, true, true, 5);
+    gtk_box_pack_start(inst->box_buttons, inst->btn_detail, false, false, 5);
+    gtk_box_pack_start(inst->box_buttons, inst->btn_next, false, false, 5);
+#else
+    gtk_widget_set_valign(GTK_WIDGET(inst->btn_next), GTK_ALIGN_END);
+    gtk_box_pack_end(inst->box_buttons, inst->btn_next, false, false, 5);
+    gtk_box_pack_end(inst->box_buttons, inst->btn_detail, false, false, 5);
+#endif
+
+    {   /* Warnings area widget definition start */
+        inst->box_warning_labels = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0));
+        gtk_widget_set_visible(GTK_WIDGET(inst->box_warning_labels), TRUE);
+
+        GtkBox *vbox = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0));
+        gtk_widget_set_visible(GTK_WIDGET(vbox), TRUE);
+        gtk_box_pack_start(vbox, GTK_WIDGET(inst->box_warning_labels), false, false, 5);
+
+        GtkWidget *image = gtk_image_new_from_icon_name("dialog-warning-symbolic", GTK_ICON_SIZE_DIALOG);
+        gtk_widget_set_visible(image, TRUE);
+
+        inst->widget_warnings_area = GTK_WIDGET(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
+        gtk_widget_set_visible(inst->widget_warnings_area, FALSE);
+        gtk_widget_set_no_show_all(inst->widget_warnings_area, TRUE);
+
+#if ((GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION < 13) || (GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION == 13 && GTK_MICRO_VERSION < 5))
+        GtkWidget *alignment_left = gtk_alignment_new(0.5,0.5,1,1);
+        gtk_widget_set_visible(alignment_left, TRUE);
+        gtk_box_pack_start(GTK_BOX(inst->widget_warnings_area), alignment_left, true, false, 0);
+#else
+        gtk_widget_set_valign(GTK_WIDGET(image), GTK_ALIGN_CENTER);
+        gtk_widget_set_valign(GTK_WIDGET(vbox), GTK_ALIGN_CENTER);
+#endif
+
+        gtk_box_pack_start(GTK_BOX(inst->widget_warnings_area), image, false, false, 5);
+        gtk_box_pack_start(GTK_BOX(inst->widget_warnings_area), GTK_WIDGET(vbox), false, false, 0);
+
+#if ((GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION < 13) || (GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION == 13 && GTK_MICRO_VERSION < 5))
+        GtkWidget *alignment_right = gtk_alignment_new(0.5,0.5,1,1);
+        gtk_widget_set_visible(alignment_right, TRUE);
+        gtk_box_pack_start(GTK_BOX(inst->widget_warnings_area), alignment_right, true, false, 0);
+#endif
+    }   /* Warnings area widget definition end */
+
+    inst->box_assistant = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0));
+    gtk_box_pack_start(inst->box_assistant, GTK_WIDGET(inst->assistant), true, true, 0);
+
+    gtk_box_pack_start(inst->box_assistant, GTK_WIDGET(inst->widget_warnings_area), false, false, 0);
+    gtk_box_pack_start(inst->box_assistant, GTK_WIDGET(inst->box_buttons), false, false, 5);
+
+    gtk_widget_show_all(GTK_WIDGET(inst->box_buttons));
+    gtk_widget_hide(inst->btn_stop);
+    gtk_widget_hide(inst->btn_onfail);
+    gtk_widget_hide(inst->btn_repeat);
+    gtk_widget_show(inst->btn_next);
+    for (int i = 0; page_names[i] != NULL; i++)
     {
         GtkWidget *page = GTK_WIDGET(gtk_builder_get_object(inst->gtk_builder, page_names[i]));
+        if (page == NULL)
+        {
+            log("Page doesn't exist");
+        }
+
         inst->pages[i].page_widget = page;
-        inst->pages[i].page_no = page_no++;
+        inst->pages[i].page_no = i;
         gtk_notebook_append_page(inst->assistant, page, gtk_label_new(inst->pages[i].title));
         log_notice("added page: %s", page_names[i]);
     }
@@ -1109,7 +1204,7 @@ static void on_btn_next_clicked(GtkButton *button, LibReportWindow *self)
 
     /* if pageno is not change 'switch-page' signal is not emitted */
     if (current_page_no == next_page_no)
-        on_page_prepare(self->priv->builder->assistant, gtk_notebook_get_nth_page(self->priv->builder->assistant, next_page_no), NULL);
+        on_page_prepare(self->priv->builder->assistant, gtk_notebook_get_nth_page(self->priv->builder->assistant, next_page_no), next_page_no, self);
     else
         gtk_notebook_set_current_page(self->priv->builder->assistant, next_page_no);
 }
@@ -1127,7 +1222,7 @@ static void on_btn_repeat_clicked(GtkButton *button, LibReportWindow *self)
     if (current_page_no == next_page_no)
     {
         on_page_prepare(self->priv->builder->assistant,
-                gtk_notebook_get_nth_page(self->priv->builder->assistant, next_page_no), NULL);
+                gtk_notebook_get_nth_page(self->priv->builder->assistant, next_page_no), next_page_no, self);
     }
     else
         gtk_notebook_set_current_page(self->priv->builder->assistant, next_page_no);
@@ -1798,7 +1893,7 @@ static void set_auto_event_chain(GtkButton *button, gpointer user_data)
 
     /* if pageno is not change 'switch-page' signal is not emitted */
     if (current_page_no == next_page_no)
-        on_page_prepare(self->priv->builder->assistant, gtk_notebook_get_nth_page(self->priv->builder->assistant, next_page_no), self);
+        on_page_prepare(self->priv->builder->assistant, gtk_notebook_get_nth_page(self->priv->builder->assistant, next_page_no), next_page_no, self);
     else
         gtk_notebook_set_current_page(self->priv->builder->assistant, next_page_no);
 
@@ -2728,7 +2823,7 @@ static gint on_key_press_event_in_item_list(GtkTreeView *treeview, GdkEventKey *
     return FALSE;
 }
 
-static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, gpointer user_data)
+static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, guint page_no, gpointer user_data)
 {
     //int page_no = gtk_assistant_get_current_page(g_assistant);
     //log_ready_state();
@@ -2770,18 +2865,6 @@ static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, gpointer us
     save_text_from_text_view(self, self->priv->builder->tv_comment, FILENAME_COMMENT);
 
     page_obj_t *pages = self->priv->builder->pages;
-
-    if (pages[PAGENO_SUMMARY].page_widget == page)
-    {
-        if (!self->priv->expert_mode)
-        {
-            /* Skip intro screen */
-            int n = select_next_page_no(self, pages[PAGENO_SUMMARY].page_no, NULL);
-            log_info("switching to page_no:%d", n);
-            gtk_notebook_set_current_page(assistant, n);
-            return;
-        }
-    }
 
     if (pages[PAGENO_EDIT_ELEMENTS].page_widget == page)
     {
@@ -3412,6 +3495,8 @@ static void lib_report_window_finalize(GObject *object);
 static void
 lib_report_window_class_init(LibReportWindowClass *klass)
 {
+    lib_report_window_gresource_register_resource();
+
     GObjectClass *object_class = G_OBJECT_CLASS(klass);
 
     object_class->finalize = lib_report_window_finalize;
@@ -3436,103 +3521,12 @@ lib_report_window_finalize(GObject *object)
 static void
 lib_report_window_init(LibReportWindow *self)
 {
-    lib_report_window_reload_problem_data(self);
-
+    self->priv = LIB_REPORT_WINDOW_GET_PRIVATE(self);
     self->priv->loaded_texts = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+
     self->priv->builder = lib_report_window_builder_new();
-
     if (self->priv->builder == NULL)
-        error_msg_and_die(_("Couldnot initialize GUI"));
-
-    self->priv->builder->assistant = GTK_NOTEBOOK(gtk_notebook_new());
-
-    self->priv->builder->btn_close = gtk_button_new_with_mnemonic(_("_Close"));
-    gtk_button_set_image(GTK_BUTTON(self->priv->builder->btn_close),
-            gtk_image_new_from_icon_name("window-close-symbolic", GTK_ICON_SIZE_BUTTON));
-
-    self->priv->builder->btn_stop = gtk_button_new_with_mnemonic(_("_Stop"));
-    gtk_button_set_image(GTK_BUTTON(self->priv->builder->btn_stop),
-            gtk_image_new_from_icon_name("process-close-symbolic", GTK_ICON_SIZE_BUTTON));
-    gtk_widget_set_no_show_all(self->priv->builder->btn_stop, true); /* else gtk_widget_hide won't work */
-
-    self->priv->builder->btn_onfail = gtk_button_new_with_label(_("Upload for analysis"));
-    gtk_button_set_image(GTK_BUTTON(self->priv->builder->btn_onfail),
-            gtk_image_new_from_icon_name("go-up-symbolic", GTK_ICON_SIZE_BUTTON));
-    gtk_widget_set_no_show_all(self->priv->builder->btn_onfail, true); /* else gtk_widget_hide won't work */
-
-    self->priv->builder->btn_repeat = gtk_button_new_with_label(_("Repeat"));
-    gtk_widget_set_no_show_all(self->priv->builder->btn_repeat, true); /* else gtk_widget_hide won't work */
-
-    self->priv->builder->btn_next = gtk_button_new_with_mnemonic(_("_Forward"));
-    gtk_button_set_image(GTK_BUTTON(self->priv->builder->btn_next),
-            gtk_image_new_from_icon_name("go-next-symbolic", GTK_ICON_SIZE_BUTTON));
-    gtk_widget_set_no_show_all(self->priv->builder->btn_next, true); /* else gtk_widget_hide won't work */
-
-    self->priv->builder->btn_detail = gtk_button_new_with_mnemonic(_("Details"));
-    gtk_widget_set_no_show_all(self->priv->builder->btn_detail, true); /* else gtk_widget_hide won't work */
-
-    self->priv->builder->box_buttons = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
-    gtk_box_pack_start(self->priv->builder->box_buttons, self->priv->builder->btn_close, false, false, 5);
-    gtk_box_pack_start(self->priv->builder->box_buttons, self->priv->builder->btn_stop, false, false, 5);
-    gtk_box_pack_start(self->priv->builder->box_buttons, self->priv->builder->btn_onfail, false, false, 5);
-    gtk_box_pack_start(self->priv->builder->box_buttons, self->priv->builder->btn_repeat, false, false, 5);
-    /* Btns above are to the left, the rest are to the right: */
-#if ((GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION < 13) || (GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION == 13 && GTK_MICRO_VERSION < 5))
-    GtkWidget *w = gtk_alignment_new(0.0, 0.0, 1.0, 1.0);
-    gtk_box_pack_start(self->priv->builder->box_buttons, w, true, true, 5);
-    gtk_box_pack_start(self->priv->builder->box_buttons, self->priv->builder->btn_detail, false, false, 5);
-    gtk_box_pack_start(self->priv->builder->box_buttons, self->priv->builder->btn_next, false, false, 5);
-#else
-    gtk_widget_set_valign(GTK_WIDGET(self->priv->builder->btn_next), GTK_ALIGN_END);
-    gtk_box_pack_end(self->priv->builder->box_buttons, self->priv->builder->btn_next, false, false, 5);
-    gtk_box_pack_end(self->priv->builder->box_buttons, self->priv->builder->btn_detail, false, false, 5);
-#endif
-
-    {   /* Warnings area widget definition start */
-        self->priv->builder->box_warning_labels = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0));
-        gtk_widget_set_visible(GTK_WIDGET(self->priv->builder->box_warning_labels), TRUE);
-
-        GtkBox *vbox = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0));
-        gtk_widget_set_visible(GTK_WIDGET(vbox), TRUE);
-        gtk_box_pack_start(vbox, GTK_WIDGET(self->priv->builder->box_warning_labels), false, false, 5);
-
-        GtkWidget *image = gtk_image_new_from_icon_name("dialog-warning-symbolic", GTK_ICON_SIZE_DIALOG);
-        gtk_widget_set_visible(image, TRUE);
-
-        self->priv->builder->widget_warnings_area = GTK_WIDGET(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
-        gtk_widget_set_visible(self->priv->builder->widget_warnings_area, FALSE);
-        gtk_widget_set_no_show_all(self->priv->builder->widget_warnings_area, TRUE);
-
-#if ((GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION < 13) || (GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION == 13 && GTK_MICRO_VERSION < 5))
-        GtkWidget *alignment_left = gtk_alignment_new(0.5,0.5,1,1);
-        gtk_widget_set_visible(alignment_left, TRUE);
-        gtk_box_pack_start(GTK_BOX(self->priv->builder->widget_warnings_area), alignment_left, true, false, 0);
-#else
-        gtk_widget_set_valign(GTK_WIDGET(image), GTK_ALIGN_CENTER);
-        gtk_widget_set_valign(GTK_WIDGET(vbox), GTK_ALIGN_CENTER);
-#endif
-
-        gtk_box_pack_start(GTK_BOX(self->priv->builder->widget_warnings_area), image, false, false, 5);
-        gtk_box_pack_start(GTK_BOX(self->priv->builder->widget_warnings_area), GTK_WIDGET(vbox), false, false, 0);
-
-#if ((GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION < 13) || (GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION == 13 && GTK_MICRO_VERSION < 5))
-        GtkWidget *alignment_right = gtk_alignment_new(0.5,0.5,1,1);
-        gtk_widget_set_visible(alignment_right, TRUE);
-        gtk_box_pack_start(GTK_BOX(self->priv->builder->widget_warnings_area), alignment_right, true, false, 0);
-#endif
-    }   /* Warnings area widget definition end */
-
-    self->priv->builder->box_assistant = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0));
-    gtk_box_pack_start(self->priv->builder->box_assistant, GTK_WIDGET(self->priv->builder->assistant), true, true, 0);
-
-    gtk_box_pack_start(self->priv->builder->box_assistant, GTK_WIDGET(self->priv->builder->widget_warnings_area), false, false, 0);
-    gtk_box_pack_start(self->priv->builder->box_assistant, GTK_WIDGET(self->priv->builder->box_buttons), false, false, 5);
-
-    gtk_widget_show_all(GTK_WIDGET(self->priv->builder->box_buttons));
-    gtk_widget_hide(self->priv->builder->btn_stop);
-    gtk_widget_hide(self->priv->builder->btn_onfail);
-    gtk_widget_hide(self->priv->builder->btn_repeat);
-    gtk_widget_show(self->priv->builder->btn_next);
+        error_msg_and_die(_("Could not initialize GUI"));
 
     gtk_container_add(GTK_CONTAINER(self), GTK_WIDGET(self->priv->builder->box_assistant));
 
@@ -3593,7 +3587,15 @@ lib_report_window_init(LibReportWindow *self)
     g_signal_connect(gtk_text_view_get_buffer(self->priv->builder->tv_event_log), "changed", G_CALLBACK (on_log_changed), self);
 
     /* switch to right starting page */
-    on_page_prepare(self->priv->builder->assistant, gtk_notebook_get_nth_page(self->priv->builder->assistant, 0), self);
+    if (!self->priv->expert_mode)
+    {
+        /* Skip intro screen */
+        int n = select_next_page_no(self, self->priv->builder->pages[PAGENO_SUMMARY].page_no, NULL);
+        log_info("switching to page_no:%d", n);
+        gtk_notebook_set_current_page(self->priv->builder->assistant, n);
+    }
+    else
+        on_page_prepare(self->priv->builder->assistant, gtk_notebook_get_nth_page(self->priv->builder->assistant, 0), 0, self);
 }
 
 LibReportWindow *

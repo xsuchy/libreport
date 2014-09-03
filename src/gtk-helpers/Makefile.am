@@ -5,7 +5,8 @@ libreport_gtk_includedir = \
 libreport_gtk_include_HEADERS = \
     internal_libreport_gtk.h \
     problem_details_widget.h \
-    problem_details_dialog.h
+    problem_details_dialog.h \
+    lib_report_window.h
 
 lib_LTLIBRARIES = \
     libreport-gtk.la
@@ -22,7 +23,8 @@ libreport_gtk_la_SOURCES = \
     search_item.c search_item.h \
     problem_details_widget.c problem_details_widget.h \
     problem_details_dialog.c problem_details_dialog.h \
-    lib_report_window.c lib_report_window.h
+    lib_report_window_gresource.c lib_report_window_gresource.h \
+    lib_report_window.c lib_report_window.
 
 libreport_gtk_la_CPPFLAGS = \
     -I$(srcdir)/../include \
@@ -32,7 +34,6 @@ libreport_gtk_la_CPPFLAGS = \
     $(GLIB_CFLAGS) \
     $(GIO_CFLAGS) \
     -DWORKFLOWS_DIR=\"$(WORKFLOWS_DIR)\" \
-    -DLIBREPORT_UI_DIR=\"$(uidir)\" \
     -D_GNU_SOURCE
 libreport_gtk_la_LDFLAGS = \
     -version-info 0:1:0
@@ -42,11 +43,15 @@ libreport_gtk_la_LIBADD = \
     $(GIO_LIBS) \
     ../lib/libreport.la
 
-dist_ui_DATA = lib-report-window.glade
-uidir = $(pkgdatadir)/ui
+resource_files = $(shell $(GLIB_COMPILE_RESOURCES) --sourcedir=$(srcdir) --generate-dependencies $(srcdir)/lib_report_window_gresource.xml)
+lib_report_window_gresource.c: lib_report_window_gresource.xml lib_report_window_gresource.h $(resource_files)
+	$(AM_V_GEN) $(GLIB_COMPILE_RESOURCES) --target=$@ --sourcedir=$(srcdir) --manual-register --generate $<
+lib_report_window_gresource.h: lib_report_window_gresource.xml $(resource_files)
+	$(AM_V_GEN) $(GLIB_COMPILE_RESOURCES) --target=$@ --sourcedir=$(srcdir) --manual-register --generate $<
 
-EXTRA_DIST = libreport-gtk.pc.in
+EXTRA_DIST = libreport-gtk.pc.in lib_report_window_gresource.xml $(resource_files)
+
+CLEANFILES = lib_report_window_gresource.c lib_report_window_gresource.h
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libreport-gtk.pc
-
