@@ -1,10 +1,10 @@
 # report-gtk binary
 bin_PROGRAMS = report-gtk
 
-report_gtk_SOURCES = \
-    wizard.h wizard.c \
-    main.c \
-    wizard_glade.c
+report_gtk_SOURCES = main.c
+#wizard.h wizard.c \
+#main.c \
+#wizard_glade.c
 
 
 # Required for gtk_builder_connect_signals() to work correctly:
@@ -37,9 +37,9 @@ report_gtk_LDADD = \
 
 # we don't want to install it, just make it part of tarball
 # created by make dist
-GLADE_FILES = wizard.glade
+#GLADE_FILES = wizard.glade
 #pkgdata_DATA = $(GLADE_FILES)
-EXTRA_DIST = $(GLADE_FILES)
+#EXTRA_DIST = $(GLADE_FILES)
 
 libreportconfdir = $(CONF_DIR)
 dist_libreportconf_DATA = \
@@ -47,14 +47,14 @@ dist_libreportconf_DATA = \
     ignored_words.conf
 
 # For internal glade file storage in the binary:
-wizard.c: wizard_glade.c
+#wizard.c: wizard_glade.c
 
-wizard_glade.c: wizard.glade
-	{ \
-	  echo '#define WIZARD_GLADE_CONTENTS "\'; \
-	  cat $(srcdir)/wizard.glade | sed -e 's/"/\\"/g' -e 's/?/\\?/g' -e 's/$$/\\/g'; \
-	  echo '"'; \
-	} >wizard_glade.c
+#wizard_glade.c: wizard.glade
+#	{ \
+#	  echo '#define WIZARD_GLADE_CONTENTS "\'; \
+#	  cat $(srcdir)/wizard.glade | sed -e 's/"/\\"/g' -e 's/?/\\?/g' -e 's/$$/\\/g'; \
+#	  echo '"'; \
+#	} >wizard_glade.c
 
 
 DEFS = -DLOCALEDIR=\"$(localedir)\" @DEFS@

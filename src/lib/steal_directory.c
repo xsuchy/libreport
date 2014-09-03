@@ -76,10 +76,12 @@ struct dump_dir *steal_directory(const char *base_dir, const char *dump_dir_name
     return dd_dst;
 }
 
-struct dump_dir *open_directory_for_writing(
+struct dump_dir *open_directory_for_writing_ext(
                             const char *dump_dir_name,
-                            bool (*ask)(const char *, const char *))
+                            bool (*ask)(const char *, const char *, void *),
+                            void *arg)
 {
+
     struct dump_dir *dd = dd_opendir(dump_dir_name, DD_OPEN_READONLY);
 
     if (!dd)
@@ -93,7 +95,7 @@ struct dump_dir *open_directory_for_writing(
 
     char *spooldir = concat_path_file(g_get_user_cache_dir(), "abrt/spool");
 
-    if (ask && !ask(spooldir, dump_dir_name))
+    if (ask && !ask(spooldir, dump_dir_name, arg))
         return NULL;
 
     dd = steal_directory(spooldir, dump_dir_name);
@@ -131,4 +133,11 @@ struct dump_dir *open_directory_for_writing(
         perror_msg("chdir()");
 
     return dd;
+}
+
+struct dump_dir *open_directory_for_writing(
+                            const char *dump_dir_name,
+                            bool (*ask)(const char *, const char *))
+{
+    return open_directory_for_writing_ext(dump_dir_name, (bool (*)(const char *, const char *, void *))ask, NULL);
 }

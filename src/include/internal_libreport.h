@@ -777,6 +777,11 @@ struct dump_dir *steal_directory(const char *base_dir, const char *dump_dir_name
 struct dump_dir *open_directory_for_writing(
                          const char *dump_dir_name,
                          bool (*ask_continue)(const char *, const char *));
+#define open_directory_for_writing_ext libreport_open_directory_for_writing_ext
+struct dump_dir *open_directory_for_writing_ext(
+                         const char *dump_dir_name,
+                         bool (*ask_continue)(const char *, const char *, void *),
+                         void *arg);
 
 // Files bigger than this are never considered to be text.
 //

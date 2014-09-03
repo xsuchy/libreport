@@ -21,7 +21,8 @@ libreport_gtk_la_SOURCES = \
     ask_dialogs.c \
     search_item.c search_item.h \
     problem_details_widget.c problem_details_widget.h \
-    problem_details_dialog.c problem_details_dialog.h
+    problem_details_dialog.c problem_details_dialog.h \
+    lib_report_window.c lib_report_window.h
 
 libreport_gtk_la_CPPFLAGS = \
     -I$(srcdir)/../include \
@@ -31,6 +32,7 @@ libreport_gtk_la_CPPFLAGS = \
     $(GLIB_CFLAGS) \
     $(GIO_CFLAGS) \
     -DWORKFLOWS_DIR=\"$(WORKFLOWS_DIR)\" \
+    -DLIBREPORT_UI_DIR=\"$(uidir)\" \
     -D_GNU_SOURCE
 libreport_gtk_la_LDFLAGS = \
     -version-info 0:1:0
@@ -40,7 +42,11 @@ libreport_gtk_la_LIBADD = \
     $(GIO_LIBS) \
     ../lib/libreport.la
 
+dist_ui_DATA = lib-report-window.glade
+uidir = $(pkgdatadir)/ui
+
 EXTRA_DIST = libreport-gtk.pc.in
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libreport-gtk.pc
+

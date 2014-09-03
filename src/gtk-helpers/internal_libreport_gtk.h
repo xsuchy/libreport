@@ -22,6 +22,7 @@
 #include <gtk/gtk.h>
 #include "problem_details_dialog.h"
 #include "problem_details_widget.h"
+#include "lib_report_window.h"
 #include "report.h"
 #include "internal_libreport.h"
 

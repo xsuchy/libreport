@@ -17,60 +17,15 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 #include <gtk/gtk.h>
+#include "internal_libreport_gtk.h"
 #include "internal_libreport.h"
-#include "wizard.h"
 #if HAVE_LOCALE_H
 # include <locale.h>
 #endif
 
-char *g_glade_file = NULL;
-char *g_dump_dir_name = NULL;
-char *g_events = NULL;
+GtkApplication *g_app = NULL;
 GList *g_auto_event_list = NULL;
-problem_data_t *g_cd;
-
-
-void problem_data_reload_from_dump_dir(void)
-{
-    free(g_events);
-
-    struct dump_dir *dd = dd_opendir(g_dump_dir_name, DD_OPEN_READONLY);
-    if (!dd)
-        xfunc_die(); /* dd_opendir already logged error msg */
-
-    problem_data_t *new_cd = create_problem_data_from_dump_dir(dd);
-    problem_data_add_text_noteditable(new_cd, CD_DUMPDIR, g_dump_dir_name);
-
-    g_events = list_possible_events(dd, NULL, "");
-    dd_close(dd);
-
-    /* Copy "selected for reporting" flags */
-    GHashTableIter iter;
-    char *name;
-    struct problem_item *new_item;
-    g_hash_table_iter_init(&iter, new_cd);
-    while (g_hash_table_iter_next(&iter, (void**)&name, (void**)&new_item))
-    {
-        struct problem_item *old_item = g_cd ? problem_data_get_item_or_NULL(g_cd, name) : NULL;
-        if (old_item)
-        {
-            new_item->selected_by_user = old_item->selected_by_user;
-            new_item->allowed_by_reporter = old_item->allowed_by_reporter;
-            new_item->default_by_reporter = old_item->default_by_reporter;
-            new_item->required_by_reporter = old_item->required_by_reporter;
-        }
-        else
-        {
-            new_item->selected_by_user = 0;
-            new_item->allowed_by_reporter = 0;
-            new_item->default_by_reporter = 0;
-            new_item->required_by_reporter = 0;
-        }
-        //log("%s: was ->selected_by_user=%d", __func__, new_item->selected_by_user);
-    }
-    problem_data_free(g_cd);
-    g_cd = new_cd;
-}
+char *g_dump_dir_name = NULL;
 
 static void
 preferences_activated(GSimpleAction *action,
@@ -117,8 +72,32 @@ static void
 activate_wizard(GApplication *app,
                 gpointer user_data)
 {
-    create_assistant(GTK_APPLICATION(app), (bool)user_data);
-    update_gui_state_from_problem_data(UPDATE_SELECTED_EVENT);
+    LibReportWindow *wnd = lib_report_window_new_for_dir(GTK_APPLICATION(app), g_dump_dir_name);
+    lib_report_window_set_expert_mode(wnd, (bool)user_data);
+    gtk_application_add_window((GTK_APPLICATION(app)), GTK_WINDOW(wnd));
+}
+
+void show_error_as_msgbox(const char *msg)
+{
+    GtkWindow *parent = NULL;
+    GtkDialogFlags flags = GTK_DIALOG_MODAL;
+
+    GList *wnds = gtk_application_get_windows(g_app);
+    if (wnds)
+    {
+        parent = GTK_WINDOW(wnds->data);
+        flags = GTK_DIALOG_DESTROY_WITH_PARENT;
+    }
+
+    GtkWidget *dialog = NULL; dialog = gtk_message_dialog_new(
+            parent,
+            flags,
+            GTK_MESSAGE_WARNING,
+            GTK_BUTTONS_CLOSE,
+            "%s", msg);
+
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
 }
 
 int main(int argc, char **argv)
@@ -157,7 +136,6 @@ int main(int argc, char **argv)
     );
     enum {
         OPT_v = 1 << 0,
-        OPT_g = 1 << 1,
         OPT_p = 1 << 2,
         OPT_d = 1 << 3,
         OPT_e = 1 << 4,
@@ -166,7 +144,6 @@ int main(int argc, char **argv)
     /* Keep enum above and order of options below in sync! */
     struct options program_options[] = {
         OPT__VERBOSE(&g_verbose),
-        OPT_STRING('g', NULL, &g_glade_file, "FILE",          _("Alternate GUI file")),
         OPT_BOOL(  'p', NULL, NULL,                           _("Add program names to log")),
         OPT_BOOL(  'd', "delete", NULL,                       _("Remove PROBLEM_DIR after reporting")),
         OPT_LIST(  'e', "event", &g_auto_event_list, "EVENT", _("Run only these events")),
@@ -213,15 +190,19 @@ int main(int argc, char **argv)
         }
     }
 
-    problem_data_reload_from_dump_dir();
-
     g_custom_logger = &show_error_as_msgbox;
-    GtkApplication *app = gtk_application_new("org.freedesktop.libreport.report", G_APPLICATION_FLAGS_NONE);
-    g_signal_connect(app, "activate", G_CALLBACK(activate_wizard), (gpointer)expert_mode);
-    g_signal_connect(app, "startup",  G_CALLBACK(startup_wizard),  NULL);
+    g_app = gtk_application_new("org.freedesktop.libreport.report", G_APPLICATION_FLAGS_NONE);
+
+    /* set_default sets icon for every windows used in this app, so we don't
+     * have to set the icon for those windows manually
+     */
+    //gtk_window_set_default_icon_name("abrt");
+
+    g_signal_connect(g_app, "activate", G_CALLBACK(activate_wizard), (gpointer)expert_mode);
+    g_signal_connect(g_app, "startup",  G_CALLBACK(startup_wizard),  NULL);
     /* Enter main loop */
-    g_application_run(G_APPLICATION(app), argc, argv);
-    g_object_unref(app);
+    g_application_run(G_APPLICATION(g_app), argc, argv);
+    g_object_unref(g_app);
 
     if (opts & OPT_d)
         delete_dump_dir_possibly_using_abrtd(g_dump_dir_name);
