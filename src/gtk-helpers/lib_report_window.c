@@ -20,6 +20,7 @@
 #include "lib_report_window_gresource.h"
 #include "internal_libreport_gtk.h"
 #include "search_item.h"
+#define gtk_button_set_image(x, y) while (0)
 
 #define LIB_REPORT_WINDOW_GET_PRIVATE(o) \
     (G_TYPE_INSTANCE_GET_PRIVATE((o), TYPE_LIB_REPORT_WINDOW, LibReportWindowPrivate))
@@ -404,16 +405,17 @@ lib_report_window_builder_new()
     gtk_widget_hide(inst->btn_onfail);
     gtk_widget_hide(inst->btn_repeat);
     gtk_widget_show(inst->btn_next);
+
     for (int i = 0; page_names[i] != NULL; i++)
     {
         GtkWidget *page = GTK_WIDGET(gtk_builder_get_object(inst->gtk_builder, page_names[i]));
-        if (page == NULL)
-        {
-            log("Page doesn't exist");
-        }
-
         inst->pages[i].page_widget = page;
         inst->pages[i].page_no = i;
+
+        GtkWidget *page_parent = gtk_widget_get_parent(page);
+        if (page_parent)
+            gtk_container_remove(GTK_CONTAINER(page_parent), page);
+
         gtk_notebook_append_page(inst->assistant, page, gtk_label_new(inst->pages[i].title));
         log_notice("added page: %s", page_names[i]);
     }
@@ -3233,25 +3235,6 @@ static void assistant_quit_cb(void *obj, void *data)
 {
     LibReportWindow *self = LIB_REPORT_WINDOW(data);
 
-    /* Suppress execution of consume_cmd_output() */
-    if (self->priv->event_source_id != 0)
-    {
-        g_source_remove(self->priv->event_source_id);
-        self->priv->event_source_id = 0;
-    }
-
-    cancel_event_run(self);
-
-    if (self->priv->loaded_texts)
-    {
-        g_hash_table_destroy(self->priv->loaded_texts);
-        self->priv->loaded_texts = NULL;
-    }
-
-    g_object_unref(self->priv->builder->gtk_builder);
-    /* TODO : free */
-    free(self->priv->builder);
-
     gtk_widget_destroy(GTK_WIDGET(self));
 }
 
@@ -3516,6 +3499,26 @@ lib_report_window_finalize(GObject *object)
     problem_data_free(self->priv->problem_data);
     free(self->priv->dump_dir_name);
     /* g_list_free(self->priv->auto_event_list) */
+
+    g_object_unref(self->priv->builder->gtk_builder);
+
+    /* TODO : free */
+    free(self->priv->builder);
+
+    /* Suppress execution of consume_cmd_output() */
+    if (self->priv->event_source_id != 0)
+    {
+        g_source_remove(self->priv->event_source_id);
+        self->priv->event_source_id = 0;
+    }
+
+    cancel_event_run(self);
+
+    if (self->priv->loaded_texts)
+    {
+        g_hash_table_destroy(self->priv->loaded_texts);
+        self->priv->loaded_texts = NULL;
+    }
 }
 
 static void
@@ -3541,16 +3544,12 @@ lib_report_window_init(LibReportWindow *self)
 
     create_details_treeview(self);
 
-    ProblemDetailsWidget *details = problem_details_widget_new(self->priv->problem_data);
-    gtk_container_add(GTK_CONTAINER(self->priv->builder->container_details1), GTK_WIDGET(details));
-
     g_signal_connect(self->priv->builder->btn_close, "clicked", G_CALLBACK(assistant_quit_cb), self);
     g_signal_connect(self->priv->builder->btn_stop, "clicked", G_CALLBACK(on_btn_cancel_event), self);
     g_signal_connect(self->priv->builder->btn_onfail, "clicked", G_CALLBACK(on_btn_failed_clicked), self);
     g_signal_connect(self->priv->builder->btn_repeat, "clicked", G_CALLBACK(on_btn_repeat_clicked), self);
     g_signal_connect(self->priv->builder->btn_next, "clicked", G_CALLBACK(on_btn_next_clicked), self);
 
-    g_signal_connect(self, "destroy", G_CALLBACK(assistant_quit_cb), self);
     g_signal_connect(self->priv->builder->assistant, "switch-page", G_CALLBACK(on_page_prepare), self);
 
     g_signal_connect(self->priv->builder->tb_approve_bt, "toggled", G_CALLBACK(on_bt_approve_toggled), self);
@@ -3587,6 +3586,7 @@ lib_report_window_init(LibReportWindow *self)
     g_signal_connect(gtk_text_view_get_buffer(self->priv->builder->tv_event_log), "changed", G_CALLBACK (on_log_changed), self);
 
     /* switch to right starting page */
+#if 0
     if (!self->priv->expert_mode)
     {
         /* Skip intro screen */
@@ -3595,6 +3595,7 @@ lib_report_window_init(LibReportWindow *self)
         gtk_notebook_set_current_page(self->priv->builder->assistant, n);
     }
     else
+#endif
         on_page_prepare(self->priv->builder->assistant, gtk_notebook_get_nth_page(self->priv->builder->assistant, 0), 0, self);
 }
 
@@ -3609,6 +3610,11 @@ lib_report_window_new_for_dir(GtkApplication *app, const char *dump_dir_name)
     self->priv->dump_dir_name = xstrdup(dump_dir_name);
 
     lib_report_window_reload_problem_data(self);
+
+    /* TODO */
+    ProblemDetailsWidget *details = problem_details_widget_new(self->priv->problem_data);
+    gtk_container_add(GTK_CONTAINER(self->priv->builder->container_details1), GTK_WIDGET(details));
+
     update_gui_state_from_problem_data(self, UPDATE_SELECTED_EVENT);
 
     gtk_widget_show_all(GTK_WIDGET(self));

@@ -68,6 +68,25 @@ startup_wizard(GApplication *app,
     gtk_application_set_app_menu (GTK_APPLICATION (app), G_MENU_MODEL(app_menu));
 }
 
+void show_error_as_msgbox(const char *msg)
+{
+    GList *wnds = gtk_application_get_windows(g_app);
+    if (wnds)
+    {
+        GtkWidget *dialog = NULL; dialog = gtk_message_dialog_new(
+            GTK_WINDOW(wnds->data),
+            GTK_DIALOG_DESTROY_WITH_PARENT,
+            GTK_MESSAGE_WARNING,
+            GTK_BUTTONS_CLOSE,
+            "%s", msg);
+
+        gtk_dialog_run(GTK_DIALOG(dialog));
+        gtk_widget_destroy(dialog);
+    }
+    else
+        fprintf(stderr, "%s", msg);
+}
+
 static void
 activate_wizard(GApplication *app,
                 gpointer user_data)
@@ -75,29 +94,8 @@ activate_wizard(GApplication *app,
     LibReportWindow *wnd = lib_report_window_new_for_dir(GTK_APPLICATION(app), g_dump_dir_name);
     lib_report_window_set_expert_mode(wnd, (bool)user_data);
     gtk_application_add_window((GTK_APPLICATION(app)), GTK_WINDOW(wnd));
-}
 
-void show_error_as_msgbox(const char *msg)
-{
-    GtkWindow *parent = NULL;
-    GtkDialogFlags flags = GTK_DIALOG_MODAL;
-
-    GList *wnds = gtk_application_get_windows(g_app);
-    if (wnds)
-    {
-        parent = GTK_WINDOW(wnds->data);
-        flags = GTK_DIALOG_DESTROY_WITH_PARENT;
-    }
-
-    GtkWidget *dialog = NULL; dialog = gtk_message_dialog_new(
-            parent,
-            flags,
-            GTK_MESSAGE_WARNING,
-            GTK_BUTTONS_CLOSE,
-            "%s", msg);
-
-    gtk_dialog_run(GTK_DIALOG(dialog));
-    gtk_widget_destroy(dialog);
+    g_custom_logger = &show_error_as_msgbox;
 }
 
 int main(int argc, char **argv)
@@ -190,7 +188,6 @@ int main(int argc, char **argv)
         }
     }
 
-    g_custom_logger = &show_error_as_msgbox;
     g_app = gtk_application_new("org.freedesktop.libreport.report", G_APPLICATION_FLAGS_NONE);
 
     /* set_default sets icon for every windows used in this app, so we don't
