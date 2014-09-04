@@ -447,6 +447,7 @@ lib_report_window_builder_new()
     inst->img_process_fail     = GTK_IMAGE(      gtk_builder_get_object(inst->gtk_builder, "img_process_fail"));
     inst->btn_startcast        = GTK_BUTTON(    gtk_builder_get_object(inst->gtk_builder, "btn_startcast"));
     inst->exp_report_log       = GTK_EXPANDER(     gtk_builder_get_object(inst->gtk_builder, "expand_report"));
+    inst->tbtn_private_ticket  = GTK_TOGGLE_BUTTON(gtk_builder_get_object(inst->gtk_builder, "private_ticket_cb"));
 
     gtk_widget_set_no_show_all(GTK_WIDGET(inst->spinner_event_log), true);
 
@@ -1194,11 +1195,6 @@ static bool cancel_event_run(LibReportWindow *self)
     return true;
 }
 
-static void on_btn_cancel_event(GtkButton *button, LibReportWindow *self)
-{
-    cancel_event_run(self);
-}
-
 static void on_btn_next_clicked(GtkButton *button, LibReportWindow *self)
 {
     gint current_page_no = gtk_notebook_get_current_page(self->priv->builder->assistant);
@@ -1881,29 +1877,17 @@ static void set_auto_event_chain(GtkButton *button, gpointer user_data)
     config_item_info_t *info = workflow_get_config_info(w);
     log_notice("selected workflow '%s'", ci_get_screen_name(info));
 
+    GList *event_list = NULL;
     GList *wf_event_list = wf_get_event_list(w);
     while(wf_event_list)
     {
-        self->priv->auto_event_list = g_list_append(self->priv->auto_event_list, xstrdup(ec_get_name(wf_event_list->data)));
+        event_list = g_list_append(event_list, xstrdup(ec_get_name(wf_event_list->data)));
         load_single_event_config_data_from_user_storage((event_config_t *)wf_event_list->data);
 
         wf_event_list = g_list_next(wf_event_list);
     }
 
-    gint current_page_no = gtk_notebook_get_current_page(self->priv->builder->assistant);
-    gint next_page_no = select_next_page_no(self, current_page_no, NULL);
-
-    /* if pageno is not change 'switch-page' signal is not emitted */
-    if (current_page_no == next_page_no)
-        on_page_prepare(self->priv->builder->assistant, gtk_notebook_get_nth_page(self->priv->builder->assistant, next_page_no), next_page_no, self);
-    else
-        gtk_notebook_set_current_page(self->priv->builder->assistant, next_page_no);
-
-    /* Show Next Step button which was hidden on Selector page in non-expert
-     * mode. Next Step button must be hidden because Selector page shows only
-     * workflow buttons in non-expert mode.
-     */
-    show_next_step_button(self);
+    lib_report_window_set_event_list(self, event_list);
 }
 
 static event_gui_data_t *new_event_gui_data_t(void)
@@ -2164,7 +2148,7 @@ static void update_gui_state_from_problem_data(LibReportWindow *self, int flags)
      * show them only in expert mode
     */
     event_gui_data_t *active_button = NULL;
-    if (self->priv->expert_mode == true)
+    if (self->priv->expert_mode)
     {
         //this widget doesn't react to show_all, so we need to "force" it
         gtk_widget_show(GTK_WIDGET(self->priv->builder->box_events));
@@ -2305,18 +2289,6 @@ static void toggle_eb_comment(LibReportWindow *self)
         gtk_widget_hide(GTK_WIDGET(self->priv->builder->eb_comment));
     else
         gtk_widget_show(GTK_WIDGET(self->priv->builder->eb_comment));
-}
-
-static void on_comment_changed(GtkTextBuffer *buffer, gpointer user_data)
-{
-    LibReportWindow *self = LIB_REPORT_WINDOW(user_data);
-    toggle_eb_comment(self);
-}
-
-static void on_no_comment_toggled(GtkToggleButton *togglebutton, gpointer user_data)
-{
-    LibReportWindow *self = LIB_REPORT_WINDOW(user_data);
-    toggle_eb_comment(self);
 }
 
 static void on_log_changed(GtkTextBuffer *buffer, gpointer user_data)
@@ -2892,7 +2864,7 @@ static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, guint page_
     {
         gtk_widget_show(self->priv->builder->btn_detail);
         gtk_widget_set_sensitive(self->priv->builder->btn_next, false);
-        on_comment_changed(gtk_text_view_get_buffer(self->priv->builder->tv_comment), NULL);
+        toggle_eb_comment(self);
     }
     //log_ready_state();
 
@@ -3082,7 +3054,6 @@ static gboolean consume_cmd_output(GIOChannel *source, GIOCondition condition, g
         free_run_event_state(evd->run_state);
         strbuf_free(evd->event_log);
         free(evd->event_name);
-        free(evd);
 
         /* Inform abrt-gui that it is a good idea to rescan the directory */
         kill(getppid(), SIGCHLD);
@@ -3091,6 +3062,8 @@ static gboolean consume_cmd_output(GIOChannel *source, GIOCondition condition, g
             hide_next_step_button(evd->window);
         else if (retval == 0 && !g_verbose && !evd->window->priv->expert_mode)
             on_btn_next_clicked(GTK_BUTTON(evd->window->priv->builder->btn_next), evd->window);
+
+        free(evd);
 
         return FALSE; /* "please remove this event" */
     }
@@ -3231,7 +3204,7 @@ static void start_event_run(LibReportWindow *self, const char *event_name)
     gtk_widget_set_sensitive(self->priv->builder->btn_next, false);
 }
 
-static void assistant_quit_cb(void *obj, void *data)
+static void on_btn_close_clicked(void *obj, void *data)
 {
     LibReportWindow *self = LIB_REPORT_WINDOW(data);
 
@@ -3498,7 +3471,7 @@ lib_report_window_finalize(GObject *object)
 
     problem_data_free(self->priv->problem_data);
     free(self->priv->dump_dir_name);
-    /* g_list_free(self->priv->auto_event_list) */
+    g_list_free_full(self->priv->auto_event_list, free);
 
     g_object_unref(self->priv->builder->gtk_builder);
 
@@ -3535,17 +3508,17 @@ lib_report_window_init(LibReportWindow *self)
 
     gtk_window_set_default_size(GTK_WINDOW(self), DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
-    g_signal_connect(self->priv->builder->cb_no_comment, "toggled", G_CALLBACK(on_no_comment_toggled), self);
+    g_signal_connect_swapped(self->priv->builder->cb_no_comment, "toggled", G_CALLBACK(toggle_eb_comment), self);
     g_signal_connect(self->priv->builder->rb_forbidden_words, "toggled", G_CALLBACK(on_forbidden_words_toggled), self);
     g_signal_connect(self->priv->builder->rb_custom_search, "toggled", G_CALLBACK(on_custom_search_toggled), self);
     g_signal_connect(self->priv->builder->tv_details, "key-press-event", G_CALLBACK(on_key_press_event_in_item_list), self);
     self->priv->tv_sensitive_sel_hndlr = g_signal_connect(self->priv->builder->tv_sensitive_sel,
-            "changed", G_CALLBACK(on_sensitive_word_selection_changed), NULL);
+            "changed", G_CALLBACK(on_sensitive_word_selection_changed), self);
 
     create_details_treeview(self);
 
-    g_signal_connect(self->priv->builder->btn_close, "clicked", G_CALLBACK(assistant_quit_cb), self);
-    g_signal_connect(self->priv->builder->btn_stop, "clicked", G_CALLBACK(on_btn_cancel_event), self);
+    g_signal_connect(self->priv->builder->btn_close, "clicked", G_CALLBACK(on_btn_close_clicked), self);
+    g_signal_connect_swapped(self->priv->builder->btn_stop, "clicked", G_CALLBACK(cancel_event_run), self);
     g_signal_connect(self->priv->builder->btn_onfail, "clicked", G_CALLBACK(on_btn_failed_clicked), self);
     g_signal_connect(self->priv->builder->btn_repeat, "clicked", G_CALLBACK(on_btn_repeat_clicked), self);
     g_signal_connect(self->priv->builder->btn_next, "clicked", G_CALLBACK(on_btn_next_clicked), self);
@@ -3553,7 +3526,7 @@ lib_report_window_init(LibReportWindow *self)
     g_signal_connect(self->priv->builder->assistant, "switch-page", G_CALLBACK(on_page_prepare), self);
 
     g_signal_connect(self->priv->builder->tb_approve_bt, "toggled", G_CALLBACK(on_bt_approve_toggled), self);
-    g_signal_connect(gtk_text_view_get_buffer(self->priv->builder->tv_comment), "changed", G_CALLBACK(on_comment_changed), self);
+    g_signal_connect_swapped(gtk_text_view_get_buffer(self->priv->builder->tv_comment), "changed", G_CALLBACK(toggle_eb_comment), self);
 
     g_signal_connect(self->priv->builder->btn_add_file, "clicked", G_CALLBACK(on_btn_add_file_clicked), self);
     g_signal_connect(self->priv->builder->btn_detail, "clicked", G_CALLBACK(on_btn_detail_clicked), self);
@@ -3611,7 +3584,6 @@ lib_report_window_new_for_dir(GtkApplication *app, const char *dump_dir_name)
 
     lib_report_window_reload_problem_data(self);
 
-    /* TODO */
     ProblemDetailsWidget *details = problem_details_widget_new(self->priv->problem_data);
     gtk_container_add(GTK_CONTAINER(self->priv->builder->container_details1), GTK_WIDGET(details));
 
@@ -3678,4 +3650,28 @@ lib_report_window_set_expert_mode(LibReportWindow *self, gboolean expert_mode)
      * will probably cause unexpected behaviour like crash.
      */
     gtk_notebook_set_show_tabs(self->priv->builder->assistant, (g_verbose != 0 && expert_mode));
+
+    add_event_buttons(self);
+}
+
+void
+lib_report_window_set_event_list(LibReportWindow *self, GList *event_list)
+{
+    g_list_free_full(self->priv->auto_event_list, free);
+    self->priv->auto_event_list = event_list;
+
+    gint current_page_no = gtk_notebook_get_current_page(self->priv->builder->assistant);
+    gint next_page_no = select_next_page_no(self, current_page_no, NULL);
+
+    /* if pageno is not change 'switch-page' signal is not emitted */
+    if (current_page_no == next_page_no)
+        on_page_prepare(self->priv->builder->assistant, gtk_notebook_get_nth_page(self->priv->builder->assistant, next_page_no), next_page_no, self);
+    else
+        gtk_notebook_set_current_page(self->priv->builder->assistant, next_page_no);
+
+    /* Show Next Step button which was hidden on Selector page in non-expert
+     * mode. Next Step button must be hidden because Selector page shows only
+     * workflow buttons in non-expert mode.
+     */
+    show_next_step_button(self);
 }

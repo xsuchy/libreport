@@ -56,6 +56,8 @@ void lib_report_window_reload_problem_data(LibReportWindow *self);
 void lib_report_window_set_expert_mode(LibReportWindow *self, gboolean expert_mode);
 gboolean lib_report_window_get_expert_mode(LibReportWindow *self);
 
+void lib_report_window_set_event_list(LibReportWindow *self, GList *event_list);
+
 G_END_DECLS
 
 #ifdef __cplusplus

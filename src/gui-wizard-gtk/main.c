@@ -93,6 +93,10 @@ activate_wizard(GApplication *app,
 {
     LibReportWindow *wnd = lib_report_window_new_for_dir(GTK_APPLICATION(app), g_dump_dir_name);
     lib_report_window_set_expert_mode(wnd, (bool)user_data);
+
+    if (g_auto_event_list)
+        lib_report_window_set_event_list(wnd, g_auto_event_list);
+
     gtk_application_add_window((GTK_APPLICATION(app)), GTK_WINDOW(wnd));
 
     g_custom_logger = &show_error_as_msgbox;
@@ -173,7 +177,6 @@ int main(int argc, char **argv)
     GHashTable *possible_workflows = load_workflow_config_data_from_list(
                 list_possible_events_glist(g_dump_dir_name, "workflow"),
                 WORKFLOWS_DIR);
-
     /* if we have only 1 workflow, we can use the events from it as default */
     if (!expert_mode && g_auto_event_list == NULL && g_hash_table_size(possible_workflows) == 1)
     {
