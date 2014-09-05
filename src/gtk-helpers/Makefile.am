@@ -24,7 +24,7 @@ libreport_gtk_la_SOURCES = \
     problem_details_widget.c problem_details_widget.h \
     problem_details_dialog.c problem_details_dialog.h \
     lib_report_window_gresource.c lib_report_window_gresource.h \
-    lib_report_window.c lib_report_window.
+    lib_report_window.c lib_report_window.h
 
 libreport_gtk_la_CPPFLAGS = \
     -I$(srcdir)/../include \

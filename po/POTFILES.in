@@ -13,8 +13,8 @@ src/gtk-helpers/workflow_config_dialog.c
 src/gtk-helpers/problem_details_widget.c
 src/gtk-helpers/problem_details_dialog.c
 src/gui-wizard-gtk/main.c
-src/gui-wizard-gtk/wizard.c
-src/gui-wizard-gtk/wizard.glade
+src/gtk-helpers/lib_report_window.c
+src/gtk-helpers/lib-report-window.glade
 src/include/internal_libreport.h
 src/lib/abrt_sock.c
 src/lib/client.c
