@@ -179,6 +179,7 @@ typedef struct {
     GtkWidget    *top_most_window;
     GtkToggleButton *tbtn_private_ticket;
     GtkSearchEntry *search_entry_bt;
+    GtkWidget    *event_btns_container;
 } LibReportWindowPrivateBuilder;
 
 struct LibReportWindowPrivate {
@@ -217,7 +218,7 @@ static void start_event_run(LibReportWindow *self, const char *event_name);
 static void update_gui_state_from_problem_data(LibReportWindow *self, int flags);
 static gboolean highlight_forbidden(LibReportWindow *self);
 static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, guint page_no, gpointer user_data);
-static gint select_next_page_no(LibReportWindow *self, gint current_page_no, gpointer data);
+static gint select_next_page_no(LibReportWindow *self, gint current_page_no);
 static void update_ls_details_checkboxes(LibReportWindow *self, const char *event_name);
 static void clear_warnings(LibReportWindow *self);
 
@@ -444,10 +445,11 @@ lib_report_window_builder_new()
     inst->rb_custom_search     = GTK_RADIO_BUTTON( gtk_builder_get_object(inst->gtk_builder, "rb_custom_search"));
     inst->exp_search           = GTK_EXPANDER(     gtk_builder_get_object(inst->gtk_builder, "expander_search"));
     inst->spinner_event_log    = GTK_SPINNER(      gtk_builder_get_object(inst->gtk_builder, "spinner_event_log"));
-    inst->img_process_fail     = GTK_IMAGE(      gtk_builder_get_object(inst->gtk_builder, "img_process_fail"));
-    inst->btn_startcast        = GTK_BUTTON(    gtk_builder_get_object(inst->gtk_builder, "btn_startcast"));
+    inst->img_process_fail     = GTK_IMAGE(        gtk_builder_get_object(inst->gtk_builder, "img_process_fail"));
+    inst->btn_startcast        = GTK_BUTTON(       gtk_builder_get_object(inst->gtk_builder, "btn_startcast"));
     inst->exp_report_log       = GTK_EXPANDER(     gtk_builder_get_object(inst->gtk_builder, "expand_report"));
     inst->tbtn_private_ticket  = GTK_TOGGLE_BUTTON(gtk_builder_get_object(inst->gtk_builder, "private_ticket_cb"));
+    inst->event_btns_container = GTK_WIDGET(       gtk_builder_get_object(inst->gtk_builder, "event_btns_container"));
 
     gtk_widget_set_no_show_all(GTK_WIDGET(inst->spinner_event_log), true);
 
@@ -1198,7 +1200,7 @@ static bool cancel_event_run(LibReportWindow *self)
 static void on_btn_next_clicked(GtkButton *button, LibReportWindow *self)
 {
     gint current_page_no = gtk_notebook_get_current_page(self->priv->builder->assistant);
-    gint next_page_no = select_next_page_no(self, current_page_no, NULL);
+    gint next_page_no = select_next_page_no(self, current_page_no);
 
     /* if pageno is not change 'switch-page' signal is not emitted */
     if (current_page_no == next_page_no)
@@ -1216,7 +1218,7 @@ static void on_btn_repeat_clicked(GtkButton *button, LibReportWindow *self)
     clear_warnings(self);
 
     const gint current_page_no = gtk_notebook_get_current_page(self->priv->builder->assistant);
-    const int next_page_no = select_next_page_no(self, self->priv->builder->pages[PAGENO_SUMMARY].page_no, NULL);
+    const int next_page_no = select_next_page_no(self, self->priv->builder->pages[PAGENO_SUMMARY].page_no);
     if (current_page_no == next_page_no)
     {
         on_page_prepare(self->priv->builder->assistant,
@@ -1473,7 +1475,6 @@ static void show_warnings(LibReportWindow *self)
         gtk_widget_show(self->priv->builder->widget_warnings_area);
 }
 
-
 static void clear_warnings(LibReportWindow *self)
 {
     /* erase all warnings */
@@ -1674,7 +1675,7 @@ static void on_event_rb_toggled(GtkButton *button, gpointer user_data)
     }
 }
 
-static gint select_next_page_no(LibReportWindow *self, gint current_page_no, gpointer data)
+static gint select_next_page_no(LibReportWindow *self, gint current_page_no)
 {
     GtkWidget *page;
     page_obj_t *pages = self->priv->builder->pages;
@@ -1870,7 +1871,7 @@ static void set_auto_event_chain(GtkButton *button, gpointer user_data)
     LibReportWindow *self = LIB_REPORT_WINDOW(user_data);
 
     //event is selected, so make sure the expert mode is disabled
-    lib_report_window_set_expert_mode(self, false);
+    self->priv->expert_mode = false;
 
     workflow_t *w = (workflow_t *)g_object_get_data(G_OBJECT(button), "workflow");
 
@@ -3448,6 +3449,26 @@ static gboolean visibility_notify_event(GtkWidget *text_view, GdkEventVisibility
 
 static void lib_report_window_finalize(GObject *object);
 
+enum {
+      PROP_0, PROP_EXPERT, N_PROPERTIES
+};
+
+static GParamSpec *g_lib_report_window_properties[N_PROPERTIES] = { NULL, };
+
+static void lib_report_window_property_set(GObject *self, guint property_id, const GValue *value, GParamSpec *pspec)
+{
+    switch (property_id)
+    {
+        case PROP_EXPERT:
+            LIB_REPORT_WINDOW(self)->priv->expert_mode = g_value_get_boolean(value);
+            return;
+
+        default:
+            error_msg_and_die("Unsupported property id %d", property_id);
+            return;
+    }
+}
+
 static void
 lib_report_window_class_init(LibReportWindowClass *klass)
 {
@@ -3462,6 +3483,14 @@ lib_report_window_class_init(LibReportWindowClass *klass)
     g_monospace_font = pango_font_description_from_string("monospace");
     g_hand_cursor = gdk_cursor_new (GDK_HAND2);
     g_regular_cursor = gdk_cursor_new (GDK_XTERM);
+
+    g_lib_report_window_properties[PROP_EXPERT] =
+        g_param_spec_boolean("expert-mode", "Expert", "Run in expert mode",
+                FALSE,
+                G_PARAM_CONSTRUCT_ONLY | G_PARAM_WRITABLE);
+
+    object_class->set_property = lib_report_window_property_set;
+    g_object_class_install_properties (object_class, N_PROPERTIES, g_lib_report_window_properties);
 }
 
 static void
@@ -3492,6 +3521,8 @@ lib_report_window_finalize(GObject *object)
         g_hash_table_destroy(self->priv->loaded_texts);
         self->priv->loaded_texts = NULL;
     }
+
+    G_OBJECT_CLASS(lib_report_window_parent_class)->finalize(object);
 }
 
 static void
@@ -3558,26 +3589,49 @@ lib_report_window_init(LibReportWindow *self)
     g_signal_connect(self->priv->builder->tv_event_log, "visibility-notify-event", G_CALLBACK (visibility_notify_event), self);
     g_signal_connect(gtk_text_view_get_buffer(self->priv->builder->tv_event_log), "changed", G_CALLBACK (on_log_changed), self);
 
-    /* switch to right starting page */
-#if 0
+    /* Show tabs only in verbose expert mode
+     *
+     * It is safe to let users randomly switch tabs only in expert mode because
+     * in all other modes a data for the selected page may not be ready and it
+     * will probably cause unexpected behaviour like crash.
+     */
+    gtk_notebook_set_show_tabs(self->priv->builder->assistant, (g_verbose != 0 && self->priv->expert_mode));
+
     if (!self->priv->expert_mode)
     {
-        /* Skip intro screen */
-        int n = select_next_page_no(self, self->priv->builder->pages[PAGENO_SUMMARY].page_no, NULL);
-        log_info("switching to page_no:%d", n);
-        gtk_notebook_set_current_page(self->priv->builder->assistant, n);
+        gtk_widget_hide(GTK_WIDGET(self->priv->builder->event_btns_container));
+
+        gint current_page_no = gtk_notebook_get_current_page(self->priv->builder->assistant);
+        if (current_page_no == self->priv->builder->pages[PAGENO_SUMMARY].page_no)
+        {
+            int n = select_next_page_no(self, self->priv->builder->pages[PAGENO_SUMMARY].page_no);
+            log_info("switching to page_no:%d", n);
+            gtk_notebook_set_current_page(self->priv->builder->assistant, n);
+        }
     }
     else
-#endif
+    {
+        gtk_widget_show(GTK_WIDGET(self->priv->builder->event_btns_container));
+        add_event_buttons(self);
+
         on_page_prepare(self->priv->builder->assistant, gtk_notebook_get_nth_page(self->priv->builder->assistant, 0), 0, self);
+    }
 }
 
 LibReportWindow *
-lib_report_window_new_for_dir(GtkApplication *app, const char *dump_dir_name)
+lib_report_window_new_for_dir(GtkApplication *app, const char *dump_dir_name, int flags)
 {
     INITIALIZE_LIBREPORT();
 
-    GObject *object = g_object_new(TYPE_LIB_REPORT_WINDOW, NULL);
+    GParameter params[] = {
+        { .name = "expert-mode" },
+    };
+
+    g_value_init(&(params[0].value), G_TYPE_BOOLEAN);
+    g_value_set_boolean(&(params[0].value), (flags & LIB_REPORT_WINDOW_EXPERT_MODE));
+
+    //GObject *object = g_object_new(TYPE_LIB_REPORT_WINDOW, "expert-mode", (flags & LIB_REPORT_WINDOW_EXPERT_MODE));
+    GObject *object = g_object_newv(TYPE_LIB_REPORT_WINDOW, 1, params);
     LibReportWindow *self = LIB_REPORT_WINDOW(object);
 
     self->priv->dump_dir_name = xstrdup(dump_dir_name);
@@ -3639,29 +3693,13 @@ lib_report_window_reload_problem_data(LibReportWindow *self)
 }
 
 void
-lib_report_window_set_expert_mode(LibReportWindow *self, gboolean expert_mode)
-{
-    self->priv->expert_mode = expert_mode;
-
-    /* Show tabs only in verbose expert mode
-     *
-     * It is safe to let users randomly switch tabs only in expert mode because
-     * in all other modes a data for the selected page may not be ready and it
-     * will probably cause unexpected behaviour like crash.
-     */
-    gtk_notebook_set_show_tabs(self->priv->builder->assistant, (g_verbose != 0 && expert_mode));
-
-    add_event_buttons(self);
-}
-
-void
 lib_report_window_set_event_list(LibReportWindow *self, GList *event_list)
 {
     g_list_free_full(self->priv->auto_event_list, free);
     self->priv->auto_event_list = event_list;
 
     gint current_page_no = gtk_notebook_get_current_page(self->priv->builder->assistant);
-    gint next_page_no = select_next_page_no(self, current_page_no, NULL);
+    gint next_page_no = select_next_page_no(self, current_page_no);
 
     /* if pageno is not change 'switch-page' signal is not emitted */
     if (current_page_no == next_page_no)

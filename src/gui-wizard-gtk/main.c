@@ -91,8 +91,9 @@ static void
 activate_wizard(GApplication *app,
                 gpointer user_data)
 {
-    LibReportWindow *wnd = lib_report_window_new_for_dir(GTK_APPLICATION(app), g_dump_dir_name);
-    lib_report_window_set_expert_mode(wnd, (bool)user_data);
+    LibReportWindow *wnd = lib_report_window_new_for_dir(GTK_APPLICATION(app),
+            g_dump_dir_name,
+            (bool)user_data ? LIB_REPORT_WINDOW_EXPERT_MODE : 0);
 
     if (g_auto_event_list)
         lib_report_window_set_event_list(wnd, g_auto_event_list);

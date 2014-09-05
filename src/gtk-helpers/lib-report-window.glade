@@ -580,17 +580,18 @@
           </packing>
         </child>
         <child>
-          <object class="GtkScrolledWindow" id="scrolledwindow2">
-            <property name="visible">True</property>
+          <object class="GtkScrolledWindow" id="event_btns_container">
+            <property name="visible">False</property>
             <property name="can_focus">True</property>
             <property name="shadow_type">in</property>
+            <property name="no_show_all">True</property>
             <child>
               <object class="GtkViewport" id="viewport1">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <child>
                   <object class="GtkVBox" id="vb_events">
-                    <property name="visible">True</property>
+                    <property name="visible">False</property>
                     <property name="can_focus">False</property>
                     <property name="no_show_all">True</property>
                     <child>
