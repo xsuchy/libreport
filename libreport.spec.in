@@ -457,8 +457,6 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_includedir}/libreport/file_obj.h
 %{_includedir}/libreport/config_item_info.h
 %{_includedir}/libreport/workflow.h
-%{_includedir}/libreport/problem_details_widget.h
-%{_includedir}/libreport/problem_details_dialog.h
 # Private api headers:
 %{_includedir}/libreport/internal_abrt_dbus.h
 %{_includedir}/libreport/internal_libreport.h
@@ -510,6 +508,10 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %defattr(-,root,root,-)
 %{_libdir}/libreport-gtk.so
 %{_includedir}/libreport/internal_libreport_gtk.h
+%{_includedir}/libreport/problem_details_widget.h
+%{_includedir}/libreport/problem_details_dialog.h
+%{_includedir}/libreport/lib_report_window.h
+%{_includedir}/libreport/
 %{_libdir}/pkgconfig/libreport-gtk.pc
 
 %files plugin-kerneloops
