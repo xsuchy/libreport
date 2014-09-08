@@ -545,11 +545,14 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %files plugin-ureport
 %defattr(-,root,root,-)
 %config(noreplace) %{_sysconfdir}/libreport/plugins/ureport.conf
+%config(noreplace) %{_sysconfdir}/libreport/events.d/ureport_event.conf
 %{_datadir}/%{name}/conf.d/plugins/ureport.conf
 %{_bindir}/reporter-ureport
 %{_mandir}/man1/reporter-ureport.1.gz
 %{_mandir}/man5/ureport.conf.5.gz
+%{_mandir}/man5/ureport_event.conf.5.*
 %{_datadir}/%{name}/events/report_uReport.xml
+%{_datadir}/%{name}/events/comment_uReport.xml
 %{_datadir}/dbus-1/interfaces/com.redhat.problems.configuration.ureport.xml
 
 %if %{with bugzilla}

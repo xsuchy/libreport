@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<event>
+    <_name>Comment uReport</_name>
+    <_description>Add a comment to crash on ABRT server</_description>
+
+    <requires-items>comment,reported_to</requires-items>
+    <gui-review-elements>no</gui-review-elements>
+
+    <options>
+        <import-event-options event="report_uReport"/>
+    </options>
+</event>

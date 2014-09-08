@@ -1,0 +1,21 @@
+ureport_event.conf(5)
+=====================
+
+NAME
+----
+ureport_event.conf - configuration file for libreport.
+
+DESCRIPTION
+-----------
+This configuration file provides definitions for events which uses
+'reporter-ureport'.
+
+By default the file contains definition for 'comment_uReport' event.
+
+SEE ALSO
+--------
+report_event.conf(5), reporter-ureport(1)
+
+AUTHOR
+------
+* ABRT team

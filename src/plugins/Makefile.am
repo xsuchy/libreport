@@ -56,7 +56,8 @@ reporters_events_conf += report_Bugzilla.conf
 endif
 
 if BUILD_UREPORT
-reporters_events += report_uReport.xml
+reporters_events += report_uReport.xml \
+                    comment_uReport.xml
 endif
 
 dist_events_DATA = $(reporters_events) \
@@ -89,7 +90,9 @@ reporters_extra_dist += report_Bugzilla.xml.in report_Bugzilla.conf \
 endif
 
 if BUILD_UREPORT
-reporters_extra_dist += report_uReport.xml.in
+dist_eventsdef_DATA += ureport_event.conf
+reporters_extra_dist += report_uReport.xml.in \
+                        comment_uReport.xml.in
 endif
 
 EXTRA_DIST = $(reporters_extra_dist) \

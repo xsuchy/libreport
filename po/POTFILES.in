@@ -42,6 +42,7 @@ src/plugins/report_Mailx.xml.in
 src/plugins/report_RHTSupport.xml.in
 src/plugins/report_Uploader.xml.in
 src/plugins/report_uReport.xml.in
+src/plugins/comment_uReport.xml.in
 src/plugins/report_EmergencyAnalysis.xml.in
 src/plugins/watch_Bugzilla.xml.in
 src/plugins/rhbz.c
