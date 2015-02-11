@@ -57,6 +57,7 @@ static char *g_event_selected;
 static unsigned g_black_event_count = 0;
 
 static pid_t g_event_child_pid = 0;
+static guint g_event_source_id = 0;
 
 static bool g_expert_mode;
 
@@ -69,6 +70,7 @@ static GtkWidget *g_btn_close;
 static GtkWidget *g_btn_next;
 static GtkWidget *g_btn_onfail;
 static GtkWidget *g_btn_repeat;
+static GtkWidget *g_btn_detail;
 
 static GtkBox *g_box_events;
 static GtkBox *g_box_workflows;
@@ -393,31 +395,12 @@ static void load_text_to_text_view(GtkTextView *tv, const char *name)
     /* a result of xstrdup() is freed */
     g_hash_table_insert(g_loaded_texts, (gpointer)xstrdup(name), (gpointer)1);
 
-    GtkTextBuffer *tb = gtk_text_view_get_buffer(tv);
-
     const char *str = g_cd ? problem_data_get_content_or_NULL(g_cd, name) : NULL;
     /* Bad: will choke at any text with non-Unicode parts: */
     /* gtk_text_buffer_set_text(tb, (str ? str : ""), -1);*/
     /* Start torturing ourself instead: */
 
-    GtkTextIter beg_iter, end_iter;
-    gtk_text_buffer_get_iter_at_offset(tb, &beg_iter, 0);
-    gtk_text_buffer_get_iter_at_offset(tb, &end_iter, -1);
-    gtk_text_buffer_delete(tb, &beg_iter, &end_iter);
-
-    if (!str)
-        return;
-
-    const gchar *end;
-    while (!g_utf8_validate(str, -1, &end))
-    {
-        gtk_text_buffer_insert_at_cursor(tb, str, end - str);
-        char buf[8];
-        unsigned len = snprintf(buf, sizeof(buf), "<%02X>", (unsigned char)*end);
-        gtk_text_buffer_insert_at_cursor(tb, buf, len);
-        str = end + 1;
-    }
-    gtk_text_buffer_insert_at_cursor(tb, str, strlen(str));
+    reload_text_to_text_view(tv, str);
 }
 
 static gchar *get_malloced_string_from_text_view(GtkTextView *tv)
@@ -1202,7 +1185,7 @@ static void append_item_to_ls_details(gpointer name, gpointer value, gpointer da
     //FIXME: use the human-readable problem_item_format(item) instead of item->content.
     if (item->flags & CD_FLAG_TXT)
     {
-        if (item->flags & CD_FLAG_ISEDITABLE)
+        if (item->flags & CD_FLAG_ISEDITABLE && strcmp(name, FILENAME_ANACONDA_TB) != 0)
         {
             GtkWidget *tab_lbl = gtk_label_new((char *)name);
             GtkWidget *tev = gtk_text_view_new();
@@ -1547,10 +1530,18 @@ static void update_event_log_on_disk(const char *str)
     dd_close(dd);
 }
 
+static bool cancel_event_run()
+{
+    if (g_event_child_pid <= 0)
+        return false;
+
+    kill(- g_event_child_pid, SIGTERM);
+    return true;
+}
+
 static void on_btn_cancel_event(GtkButton *button)
 {
-    if (g_event_child_pid > 0)
-        kill(- g_event_child_pid, SIGTERM);
+    cancel_event_run();
 }
 
 static bool is_processing_finished()
@@ -1752,6 +1743,16 @@ static bool event_need_review(const char *event_name)
 
 static void on_btn_failed_cb(GtkButton *button)
 {
+    /* Since the Repeat button has been introduced, the event chain isn't
+     * terminated upon a failure in order to be able to continue in processing
+     * in the retry action.
+     *
+     * Now, user decided to run the emergency analysis instead of trying to
+     * reconfigure libreport, so we have to terminate the event chain.
+     */
+    gtk_widget_hide(g_btn_repeat);
+    terminate_event_chain(TERMINATE_NOFLAGS);
+
     /* Show detailed log */
     gtk_expander_set_expanded(g_exp_report_log, TRUE);
 
@@ -1946,8 +1947,10 @@ static gboolean consume_cmd_output(GIOChannel *source, GIOCondition condition, g
                                                                          : _("Processing finished, please proceed to the next step."));
         }
 
-        /*g_source_remove(evd->event_source_id);*/
+        g_source_remove(g_event_source_id);
+        g_event_source_id = 0;
         close(evd->fd);
+        g_io_channel_unref(evd->channel);
         free_run_event_state(evd->run_state);
         strbuf_free(evd->event_log);
         free(evd->event_name);
@@ -2116,7 +2119,7 @@ static void start_event_run(const char *event_name)
 
     ndelay_on(evd->fd);
     evd->channel = g_io_channel_unix_new(evd->fd);
-    /*evd->event_source_id = */ g_io_add_watch(evd->channel,
+    g_event_source_id = g_io_add_watch(evd->channel,
             G_IO_IN | G_IO_ERR | G_IO_HUP, /* need HUP to detect EOF w/o any data */
             consume_cmd_output,
             evd
@@ -2682,6 +2685,7 @@ static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, gpointer us
         clear_warnings();
     }
 
+    gtk_widget_hide(g_btn_detail);
     gtk_widget_hide(g_btn_onfail);
     if (!g_expert_mode)
         gtk_widget_hide(g_btn_repeat);
@@ -2719,31 +2723,12 @@ static void on_page_prepare(GtkNotebook *assistant, GtkWidget *page, gpointer us
         show_warnings();
     }
 
-    if (pages[PAGENO_SUMMARY].page_widget == page
-     || pages[PAGENO_REVIEW_DATA].page_widget == page
-    ) {
-        GtkWidget *w = GTK_WIDGET(g_tv_details);
-        GtkContainer *c = GTK_CONTAINER(gtk_widget_get_parent(w));
-        if (c)
-            gtk_container_remove(c, w);
-        gtk_container_add(pages[PAGENO_SUMMARY].page_widget == page ?
-                        g_container_details1 : g_container_details2,
-                w
-        );
-        /* Make checkbox column visible only on the last page */
-        gtk_tree_view_column_set_visible(g_tv_details_col_checkbox,
-                (pages[PAGENO_REVIEW_DATA].page_widget == page)
-        );
-
-        if (pages[PAGENO_REVIEW_DATA].page_widget == page)
-        {
-            gtk_widget_set_sensitive(g_btn_next, gtk_toggle_button_get_active(g_tb_approve_bt));
-            update_ls_details_checkboxes(g_event_selected);
-        }
-    }
+    if (pages[PAGENO_REVIEW_DATA].page_widget == page)
+        update_ls_details_checkboxes(g_event_selected);
 
     if (pages[PAGENO_EDIT_COMMENT].page_widget == page)
     {
+        gtk_widget_show(g_btn_detail);
         gtk_widget_set_sensitive(g_btn_next, false);
         on_comment_changed(gtk_text_view_get_buffer(g_tv_comment), NULL);
     }
@@ -3201,6 +3186,12 @@ static void on_btn_add_file(GtkButton *button)
     }
 }
 
+static void on_btn_detail(GtkButton *button)
+{
+    GtkWidget *pdd = problem_details_dialog_new(g_cd, g_wnd_assistant);
+    gtk_dialog_run(GTK_DIALOG(pdd));
+}
+
 /* [Del] key handling in item list */
 static void delete_item(GtkTreeView *treeview)
 {
@@ -3326,6 +3317,8 @@ static void add_pages(void)
 
     g_signal_connect(g_tv_details, "key-press-event", G_CALLBACK(on_key_press_event_in_item_list), NULL);
     g_tv_sensitive_sel_hndlr = g_signal_connect(g_tv_sensitive_sel, "changed", G_CALLBACK(on_sensitive_word_selection_changed), NULL);
+
+
 }
 
 static void create_details_treeview(void)
@@ -3403,13 +3396,23 @@ static void init_pages(void)
 
 static void assistant_quit_cb(void *obj, void *data)
 {
+    /* Suppress execution of consume_cmd_output() */
+    if (g_event_source_id != 0)
+    {
+        g_source_remove(g_event_source_id);
+        g_event_source_id = 0;
+    }
+
+    cancel_event_run();
+
     if (g_loaded_texts)
     {
         g_hash_table_destroy(g_loaded_texts);
         g_loaded_texts = NULL;
     }
 
-    gtk_widget_destroy(GTK_WIDGET(data));
+    gtk_widget_destroy(GTK_WIDGET(g_wnd_assistant));
+    g_wnd_assistant = (void *)0xdeadbeaf;
 }
 
 static void on_btn_startcast(GtkWidget *btn, gpointer user_data)
@@ -3484,18 +3487,20 @@ void create_assistant(GtkApplication *app, bool expert_mode)
     gtk_notebook_set_show_tabs(g_assistant, (g_verbose != 0 && g_expert_mode));
 
     g_btn_close = gtk_button_new_with_mnemonic(_("_Close"));
-    gtk_button_set_image(GTK_BUTTON(g_btn_close), gtk_image_new_from_icon_name("window-close", GTK_ICON_SIZE_BUTTON));
+    gtk_button_set_image(GTK_BUTTON(g_btn_close), gtk_image_new_from_icon_name("window-close-symbolic", GTK_ICON_SIZE_BUTTON));
     g_btn_stop = gtk_button_new_with_mnemonic(_("_Stop"));
-    gtk_button_set_image(GTK_BUTTON(g_btn_stop), gtk_image_new_from_icon_name("process-close", GTK_ICON_SIZE_BUTTON));
+    gtk_button_set_image(GTK_BUTTON(g_btn_stop), gtk_image_new_from_icon_name("process-close-symbolic", GTK_ICON_SIZE_BUTTON));
     gtk_widget_set_no_show_all(g_btn_stop, true); /* else gtk_widget_hide won't work */
     g_btn_onfail = gtk_button_new_with_label(_("Upload for analysis"));
-    gtk_button_set_image(GTK_BUTTON(g_btn_onfail), gtk_image_new_from_icon_name("go-up", GTK_ICON_SIZE_BUTTON));
+    gtk_button_set_image(GTK_BUTTON(g_btn_onfail), gtk_image_new_from_icon_name("go-up-symbolic", GTK_ICON_SIZE_BUTTON));
     gtk_widget_set_no_show_all(g_btn_onfail, true); /* else gtk_widget_hide won't work */
     g_btn_repeat = gtk_button_new_with_label(_("Repeat"));
     gtk_widget_set_no_show_all(g_btn_repeat, true); /* else gtk_widget_hide won't work */
     g_btn_next = gtk_button_new_with_mnemonic(_("_Forward"));
-    gtk_button_set_image(GTK_BUTTON(g_btn_next), gtk_image_new_from_icon_name("go-next", GTK_ICON_SIZE_BUTTON));
+    gtk_button_set_image(GTK_BUTTON(g_btn_next), gtk_image_new_from_icon_name("go-next-symbolic", GTK_ICON_SIZE_BUTTON));
     gtk_widget_set_no_show_all(g_btn_next, true); /* else gtk_widget_hide won't work */
+    g_btn_detail = gtk_button_new_with_mnemonic(_("Details"));
+    gtk_widget_set_no_show_all(g_btn_detail, true); /* else gtk_widget_hide won't work */
 
     g_box_buttons = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
     gtk_box_pack_start(g_box_buttons, g_btn_close, false, false, 5);
@@ -3506,10 +3511,12 @@ void create_assistant(GtkApplication *app, bool expert_mode)
 #if ((GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION < 13) || (GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION == 13 && GTK_MICRO_VERSION < 5))
     GtkWidget *w = gtk_alignment_new(0.0, 0.0, 1.0, 1.0);
     gtk_box_pack_start(g_box_buttons, w, true, true, 5);
+    gtk_box_pack_start(g_box_buttons, g_btn_detail, false, false, 5);
     gtk_box_pack_start(g_box_buttons, g_btn_next, false, false, 5);
 #else
     gtk_widget_set_valign(GTK_WIDGET(g_btn_next), GTK_ALIGN_END);
     gtk_box_pack_end(g_box_buttons, g_btn_next, false, false, 5);
+    gtk_box_pack_end(g_box_buttons, g_btn_detail, false, false, 5);
 #endif
 
     {   /* Warnings area widget definition start */
@@ -3520,7 +3527,7 @@ void create_assistant(GtkApplication *app, bool expert_mode)
         gtk_widget_set_visible(GTK_WIDGET(vbox), TRUE);
         gtk_box_pack_start(vbox, GTK_WIDGET(g_box_warning_labels), false, false, 5);
 
-        GtkWidget *image = gtk_image_new_from_icon_name("dialog-warning", GTK_ICON_SIZE_DIALOG);
+        GtkWidget *image = gtk_image_new_from_icon_name("dialog-warning-symbolic", GTK_ICON_SIZE_DIALOG);
         gtk_widget_set_visible(image, TRUE);
 
         g_widget_warnings_area = GTK_WIDGET(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
@@ -3573,19 +3580,23 @@ void create_assistant(GtkApplication *app, bool expert_mode)
 
     create_details_treeview();
 
-    g_signal_connect(g_btn_close, "clicked", G_CALLBACK(assistant_quit_cb), g_wnd_assistant);
+    ProblemDetailsWidget *details = problem_details_widget_new(g_cd);
+    gtk_container_add(GTK_CONTAINER(g_container_details1), GTK_WIDGET(details));
+
+    g_signal_connect(g_btn_close, "clicked", G_CALLBACK(assistant_quit_cb), NULL);
     g_signal_connect(g_btn_stop, "clicked", G_CALLBACK(on_btn_cancel_event), NULL);
     g_signal_connect(g_btn_onfail, "clicked", G_CALLBACK(on_btn_failed_cb), NULL);
     g_signal_connect(g_btn_repeat, "clicked", G_CALLBACK(on_btn_repeat_cb), NULL);
     g_signal_connect(g_btn_next, "clicked", G_CALLBACK(on_next_btn_cb), NULL);
 
-    g_signal_connect(g_wnd_assistant, "destroy", G_CALLBACK(assistant_quit_cb), g_wnd_assistant);
+    g_signal_connect(g_wnd_assistant, "destroy", G_CALLBACK(assistant_quit_cb), NULL);
     g_signal_connect(g_assistant, "switch-page", G_CALLBACK(on_page_prepare), NULL);
 
     g_signal_connect(g_tb_approve_bt, "toggled", G_CALLBACK(on_bt_approve_toggle), NULL);
     g_signal_connect(gtk_text_view_get_buffer(g_tv_comment), "changed", G_CALLBACK(on_comment_changed), NULL);
 
     g_signal_connect(g_btn_add_file, "clicked", G_CALLBACK(on_btn_add_file), NULL);
+    g_signal_connect(g_btn_detail, "clicked", G_CALLBACK(on_btn_detail), NULL);
 
     if (is_screencast_available()) {
         /* we need to override the activate-link handler, because we use
