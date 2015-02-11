@@ -149,6 +149,51 @@ char* get_environ(pid_t pid)
     return get_escaped(path, '\n');
 }
 
+int get_env_variable(pid_t pid, const char *name, char **value)
+{
+    char path[sizeof("/proc/%lu/environ") + sizeof(long)*3];
+    snprintf(path, sizeof(path), "/proc/%lu/environ", (long)pid);
+
+    FILE *fenv = fopen(path, "re");
+    if (fenv == NULL)
+        return -1;
+
+    log("opened");
+    size_t len = strlen(name);
+    int c = 0;
+    while (c != EOF)
+    {
+        long i = 0;
+        while ((c = fgetc(fenv)) != EOF && (i < len && c == name[i++]))
+            ;
+
+        if (c == EOF)
+            break;
+
+        const int skip = (c != '=' || name[i] != '\0');
+        i = 0;
+        while ((c = fgetc(fenv)) != EOF && c !='\0')
+            ++i;
+
+        if (skip)
+            continue;
+
+        log("value");
+        *value = xmalloc(i+1);
+        if (fseek(fenv, -(i+1), SEEK_CUR) < 0)
+            error_msg_and_die("Failed to seek");
+        if (fread(*value, 1, i, fenv) != i)
+            error_msg_and_die("Failed to read value");
+        (*value)[i] = '\0';
+
+        break;
+    }
+
+    fclose(fenv);
+    return 0;
+}
+
+
 int get_ns_ids(pid_t pid, struct ns_ids *ids)
 {
     int r = 0;
@@ -156,14 +201,19 @@ int get_ns_ids(pid_t pid, struct ns_ids *ids)
     sprintf(ns_dir_path, "/proc/%lu/ns", (long)pid);
 
     DIR *ns_dir_fd = opendir(ns_dir_path);
-    if (ns_dir_fd == NULL) {
+    if (ns_dir_fd == NULL)
+    {
+        perror("Failed to open ns path");
         return -errno;
     }
 
-    for (size_t i = 0; i < ARRAY_SIZE(libreport_proc_namespaces); ++i) {
+    for (size_t i = 0; i < ARRAY_SIZE(libreport_proc_namespaces); ++i)
+    {
         struct stat stbuf;
-        if (fstatat(dirfd(ns_dir_fd), libreport_proc_namespaces[i], &stbuf, /* flags */0) != 0) {
-            if (errno != ENOENT) {
+        if (fstatat(dirfd(ns_dir_fd), libreport_proc_namespaces[i], &stbuf, /* flags */0) != 0)
+        {
+            if (errno != ENOENT)
+            {
                 r = (i + 1);
                 goto get_ns_ids_cleanup;
             }
@@ -358,28 +408,29 @@ static int get_process_ppid(pid_t pid, pid_t *ppid)
     sprintf(stat_path, "/proc/%lu/stat", (long)pid);
 
     FILE *stat_file = fopen(stat_path, "re");
-    if (stat_file == NULL) {
+    if (stat_file == NULL)
+    {
         perror("Failed to open stat file");
         r = -1;
         goto get_process_ppid_cleanup;
     }
 
     int p = fscanf(stat_file, "%*d %*s %*c %d", ppid);
-    if (p != 1) {
+    if (p != 1)
+    {
         fprintf(stderr, "Failed to parse stat line %d\n", p);
         r = -2;
         goto get_process_ppid_cleanup;
     }
 
 get_process_ppid_cleanup:
-    if (stat_file != NULL) {
+    if (stat_file != NULL)
         fclose(stat_file);
-    }
 
     return r;
 }
 
-int process_is_in_container(pid_t pid)
+int process_is_fully_isolated(pid_t pid)
 {
     struct ns_ids pid_ids;
     struct ns_ids init_ids;
@@ -400,7 +451,7 @@ int process_is_in_container(pid_t pid)
     return proc_ns_eq(&init_ids, &pid_ids, /*neg*/1) == 0;
 }
 
-int get_pid_of_init(pid_t pid, pid_t *init_pid)
+int get_pid_of_container(pid_t pid, pid_t *init_pid)
 {
     pid_t cpid = pid;
     pid_t ppid = 0;
@@ -427,7 +478,7 @@ int get_pid_of_init(pid_t pid, pid_t *init_pid)
             return -2;
         }
 
-        /* If any pid's  NS differs from parent's NS, then parent is pid's init. */
+        /* If any pid's  NS differs from parent's NS, then parent is pid's container. */
         if (proc_ns_eq(&pid_ids, &ppid_ids, 0) != 0)
             break;
 
