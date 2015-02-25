@@ -66,7 +66,8 @@ libreport_la_SOURCES = \
     xml_parser.c \
     libreport_init.c \
     reporters.c \
-    global_configuration.c
+    global_configuration.c \
+    acl_util.c acl_util.h
 
 libreport_la_CPPFLAGS = \
     -I$(srcdir)/../include \
@@ -97,7 +98,8 @@ libreport_la_LIBADD = \
     $(JOURNAL_LIBS) \
     $(GOBJECT_LIBS) \
     $(AUGEAS_LIBS) \
-    $(SATYR_LIBS)
+    $(SATYR_LIBS) \
+    $(ACL_LIBS)
 
 libreportconfdir = $(CONF_DIR)
 dist_libreportconf_DATA = \

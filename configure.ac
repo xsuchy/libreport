@@ -86,6 +86,21 @@ AC_PATH_PROG([XMLTO], [xmlto], [no])
     [exit 1]
 [fi]
 
+AC_CHECK_HEADERS(
+        [sys/acl.h acl/libacl.h],
+        [have_acl=yes],
+        [AC_MSG_ERROR([*** ACL headers not found.])
+        ])
+
+AC_CHECK_LIB(
+        [acl],
+        [acl_get_file],
+        [have_acl=yes],
+        [AC_MSG_ERROR([*** libacl not found.])
+        ])
+
+ACL_LIBS="-lacl"
+
 AC_ARG_WITH(bugzilla,
 AS_HELP_STRING([--with-bugzilla],[use Bugzilla plugin (default is YES)]),
 LIBREPORT_PARSE_WITH([bugzilla]))

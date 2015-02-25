@@ -18,6 +18,7 @@
 */
 #include <sys/utsname.h>
 #include "internal_libreport.h"
+#include "acl_util.h"
 
 // Locking logic:
 //
@@ -618,6 +619,34 @@ struct dump_dir *dd_create(const char *dir, uid_t uid, mode_t mode)
         {
             perror_msg("Can't change '%s' ownership to %lu:%lu", dir,
                        (long)dd->dd_uid, (long)dd->dd_gid);
+        }
+    }
+
+    /* Allow 'wheel' users (admins) to modify dump dirs */
+    {
+        /* Get wheel's group gid */
+        struct group *gr = getgrnam("wheel");
+        if (!gr)
+        {
+            error_msg("Group 'wheel' does not exist, not adding ACLs");
+        }
+        else
+        {
+            DIR *d;
+
+            d = opendir(dir);
+            if (!d)
+            {
+                error_msg("Can't open '%s' to add ACLs", dir);
+            }
+            else
+            {
+                int fd;
+
+                fd = dirfd(d);
+                add_group_acl(fd, gr->gr_gid);
+                closedir(d);
+            }
         }
     }
 
