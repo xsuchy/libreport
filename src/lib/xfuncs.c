@@ -190,6 +190,12 @@ void xchdir(const char *path)
         perror_msg_and_die("chdir(%s)", path);
 }
 
+void xchroot(const char *path)
+{
+    if (chroot(path))
+        perror_msg_and_die("chroot(%s)", path);
+}
+
 char* xvasprintf(const char *format, va_list p)
 {
     int r;

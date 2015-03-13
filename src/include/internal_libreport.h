@@ -369,6 +369,9 @@ off_t xlseek(int fd, off_t offset, int whence);
 #define xchdir libreport_xchdir
 void xchdir(const char *path);
 
+#define xchroot libreport_xchroot
+void xchroot(const char *path);
+
 #define xvasprintf libreport_xvasprintf
 char* xvasprintf(const char *format, va_list p);
 #define xasprintf libreport_xasprintf
