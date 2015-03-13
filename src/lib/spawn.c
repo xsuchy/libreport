@@ -83,7 +83,12 @@ pid_t fork_execv_on_steroids(int flags,
 		/* Child */
 
 		if (dir)
-			xchdir(dir);
+        {
+            if (flags & EXECFLG_CHROOT)
+                xchroot(dir);
+            else
+                xchdir(dir);
+        }
 
 		if (flags & EXECFLG_SETGUID) {
 			setgroups(1, &gid);

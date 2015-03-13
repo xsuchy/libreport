@@ -274,6 +274,8 @@ enum {
         EXECFLG_SETGUID    = 1 << 7,
         EXECFLG_SETSID     = 1 << 8,
         EXECFLG_SETPGID    = 1 << 9,
+        /* use chroot(dir) instead of chdir(dir) */
+        EXECFLG_CHROOT     = 1 << 10,
 };
 /*
  * env_vec: list of variables to set in environment (if string has
