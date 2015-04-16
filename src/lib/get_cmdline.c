@@ -213,7 +213,7 @@ int get_fsuid(const char *proc_pid_status)
     return fs_uid;
 }
 
-int dump_fd_info(const char *dest_filename, const char *proc_pid_fd_path)
+int dump_fd_info_ext(const char *dest_filename, const char *proc_pid_fd_path, uid_t uid, gid_t gid)
 {
     DIR *proc_fd_dir = NULL;
     int proc_fdinfo_fd = -1;
@@ -237,7 +237,7 @@ int dump_fd_info(const char *dest_filename, const char *proc_pid_fd_path)
         goto dumpfd_cleanup;
     }
 
-    stream = fopen(dest_filename, "w");
+    stream = fopen(dest_filename, "wex");
     if (!stream)
     {
         r = -ENOMEM;
@@ -295,7 +295,25 @@ dumpfd_next_fd:
 
 dumpfd_cleanup:
     errno = 0;
-    fclose(stream);
+
+    if (stream != NULL)
+    {
+        if (uid != (uid_t)-1L)
+        {
+            const int stream_fd = fileno(stream);
+            r = fchown(stream_fd, uid, gid);
+            if (r < 0)
+            {
+                perror_msg("Can't change '%s' ownership to %lu:%lu", dest_filename, (long)uid, (long)gid);
+                fclose(stream);
+                unlink(dest_filename);
+                stream = NULL;
+            }
+        }
+
+        if (stream != NULL)
+            fclose(stream);
+    }
 
     if (r == 0 && errno != 0)
         r = -errno;
@@ -305,4 +323,9 @@ dumpfd_cleanup:
     free(buffer);
 
     return r;
+}
+
+int dump_fd_info(const char *dest_filename, const char *proc_pid_fd_path)
+{
+    return dump_fd_info_ext(dest_filename, proc_pid_fd_path, /*UID*/-1, /*GID*/-1);
 }
