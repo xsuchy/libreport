@@ -9,6 +9,7 @@ import time
 import errno
 import shutil
 from subprocess import Popen
+import tempfile
 
 from yum import _, YumBase
 from yum.callbacks import DownloadBaseCallback
@@ -121,17 +122,22 @@ def unpack_rpm(package_file_name, files, tmp_dir, destdir, keeprpm, exact_files=
             file_patterns += "." + filename + " "
         cpio_args = ["cpio", "-idu", file_patterns.strip()]
 
-    with open("/dev/null", "w") as null:
+    with tempfile.NamedTemporaryFile(prefix='abrt-unpacking-', dir='/tmp',
+                                     delete=False) as log_file:
+        log_file_name = log_file.name
         cpio = Popen(cpio_args, cwd=destdir, bufsize=-1,
-                     stdin=unpacked_cpio, stdout=null, stderr=null)
+                     stdin=unpacked_cpio, stdout=log_file, stderr=log_file)
         retcode = cpio.wait()
 
     if retcode == 0:
         log1("files extracted OK")
         #print _("Removing temporary cpio file")
+        os.unlink(log_file_name)
         os.unlink(unpacked_cpio_path)
     else:
         print _("Can't extract files from '{0}'").format(unpacked_cpio_path)
+        print(_("Can't extract files from '{0}'. For more information see '{1}'")
+              .format(unpacked_cpio_path, log_file_name))
         return RETURN_FAILURE
 
 def clean_up():
