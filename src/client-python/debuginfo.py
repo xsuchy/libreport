@@ -129,6 +129,8 @@ def unpack_rpm(package_file_name, files, tmp_dir, destdir, keeprpm, exact_files=
                      stdin=unpacked_cpio, stdout=log_file, stderr=log_file)
         retcode = cpio.wait()
 
+    unpacked_cpio.close()
+
     if retcode == 0:
         log1("files extracted OK")
         #print _("Removing temporary cpio file")
