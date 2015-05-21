@@ -60,6 +60,7 @@ libreport_la_CPPFLAGS = \
     -DCONF_DIR=\"$(CONF_DIR)\" \
     -DEVENTS_DIR=\"$(EVENTS_DIR)\" \
     -DBIN_DIR=\"$(bindir)\" \
+    -DDUMP_DIR_OWNED_BY_USER=$(DUMP_DIR_OWNED_BY_USER) \
     $(GLIB_CFLAGS) \
     -D_GNU_SOURCE
 libreport_la_LDFLAGS = \
