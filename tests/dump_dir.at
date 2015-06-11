@@ -39,6 +39,9 @@ void validate_dump_dir_contents(struct dump_dir *dd)
     assert(dd_exist(dd, FILENAME_TYPE));
     ++items;
 
+    assert(dd_exist(dd, FILENAME_ANALYZER));
+    ++items;
+
     assert(dd_exist(dd, FILENAME_LAST_OCCURRENCE));
     ++items;
 
@@ -113,6 +116,7 @@ int main(int argc, char **argv)
 
     dd_create_basic_files(dd, geteuid(), NULL);
     dd_save_text(dd, FILENAME_TYPE, "attest");
+    dd_save_text(dd, FILENAME_ANALYZER, "attest");
 
     dd_save_text(dd, "at_test_text", "foo");
     assert(dd_exist(dd, "at_test_text"));
@@ -210,6 +214,7 @@ int main(int argc, char **argv)
 
     dd_create_basic_files(dd, (uid_t)-1, NULL);
     dd_save_text(dd, FILENAME_TYPE, "attest");
+    dd_save_text(dd, FILENAME_ANALYZER, "attest");
 
     dd_close(dd);
     dd = NULL;
@@ -268,6 +273,7 @@ int main(int argc, char **argv)
 
     dd_create_basic_files(dd, (uid_t)-1, NULL);
     dd_save_text(dd, FILENAME_TYPE, "attest");
+    dd_save_text(dd, FILENAME_ANALYZER, "attest");
 
     dd_close(dd);
 
@@ -473,6 +479,7 @@ int main(int argc, char **argv)
     assert(dd != NULL || !"create new");
     dd_create_basic_files(dd, geteuid(), NULL);
     dd_save_text(dd, "type", "custom");
+    dd_save_text(dd, "analyzer", "custom");
     dd_close(dd);
     dd = NULL;
 
@@ -556,6 +563,7 @@ int main(int argc, char **argv)
 
     dd_create_basic_files(dd, -1L, "/");
     dd_save_text(dd, "type", "custom");
+    dd_save_text(dd, "analyzer", "custom");
 
     struct dump_dir *dd2 = dd_opendir(path, DD_OPEN_READONLY);
     assert(dd2->owns_lock == 0);
@@ -651,6 +659,7 @@ int main(void)
     problem_data_t *pd = problem_data_new();
 
     problem_data_add_text_editable(pd, FILENAME_TYPE, "attest");
+    problem_data_add_text_editable(pd, FILENAME_ANALYZER, "attest");
 
     {
         fprintf(stderr, "=== NO UID - geteuid() ===\n");
