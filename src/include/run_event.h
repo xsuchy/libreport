@@ -196,6 +196,12 @@ int run_event_on_problem_data(struct run_event_state *state, problem_data_t *dat
 
 /* Querying for possible events */
 
+GList *load_rule_list(GList *rule_list, const char *conf_file_name, unsigned recursion_depth);
+
+GList *list_possible_events_for_rules(struct dump_dir **dd, problem_data_t *pd,
+                                      const char *dump_dir_name, const char *pfx,
+                                      GList *rule_list)
+
 /* Scans event.conf for events starting with pfx which are applicable
  * to dd, or (if dd is NULL), to dump_dir.
  * Returns a malloced string with '\n'-terminated event names.

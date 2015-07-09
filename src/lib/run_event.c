@@ -139,10 +139,13 @@ static void free_rule_list(GList *rule_list)
 /* Stop-gap measure against infinite recursion */
 #define MAX_recursion_depth 32
 
-static GList *load_rule_list(GList *rule_list,
+GList *load_rule_list(GList *rule_list,
                 const char *conf_file_name,
                 unsigned recursion_depth
 ) {
+    if (conf_file_name == NULL)
+        conf_file_name = CONF_DIR"/report_event.conf";
+
     FILE *conffile = fopen(conf_file_name, "r");
     if (!conffile)
     {
@@ -254,10 +257,10 @@ static GList *load_rule_list(GList *rule_list,
     return rule_list;
 }
 
-static int regcmp_lines(char *val, const char *regex)
+static int regcmp_lines(const char *val, const char *regex)
 {
     regex_t rx;
-    int r = regcomp(&rx, regex, REG_NOSUB); //TODO: and REG_EXTENDED?
+    int r = regcomp(&rx, regex, REG_NOSUB | REG_NEWLINE); //TODO: and REG_EXTENDED?
     //log("REGEX:'%s':%d", regex, r);
     if (r)
     {
@@ -268,19 +271,7 @@ static int regcmp_lines(char *val, const char *regex)
     }
 
     /* Check every line */
-    while (1)
-    {
-        char *eol = strchr(val, '\n');
-        if (eol)
-            *eol = '\0';
-        r = regexec(&rx, val, 0, NULL, /*eflags:*/ 0);
-        //log("REGCMP:'%s':%d", val, r);
-        if (eol)
-            *eol = '\n';
-        if (r == 0 || !eol)
-            break;
-        val = eol + 1;
-    }
+    r = regexec(&rx, val, 0, NULL, /*eflags:*/ 0);
     /* Here, r == 0 if match was found */
     regfree(&rx);
     return r;
@@ -357,12 +348,13 @@ static char* pop_next_command(GList **pp_rule_list,
                 /* Is it "VAR!=VAL"? */
                 int inverted = (eq_sign > cond_str && eq_sign[-1] == '!');
                 char *var_name = xstrndup(cond_str, eq_sign - cond_str - (regex|inverted));
-                char *real_val = NULL;
+                const char *real_val = NULL;
                 char *free_me = NULL;
                 if (pd == NULL)
-                    free_me = real_val = dd_load_text_ext(dd, var_name, DD_FAIL_QUIETLY_ENOENT);
+                    real_val = free_me = dd_load_text_ext(dd, var_name, DD_FAIL_QUIETLY_ENOENT);
                 else
-                    real_val = problem_data_get_content_or_NULL(pd, var_name);
+                    real_val = problem_data_get_content_or_default(pd, var_name, "");
+
                 free(var_name);
                 int vals_differ = regex ? regcmp_lines(real_val, eq_sign + 1) : strcmp(real_val, eq_sign + 1);
                 free(free_me);
@@ -422,7 +414,7 @@ int prepare_commands(struct run_event_state *state,
     state->children_count = 0;
     strbuf_clear(state->command_output);
 
-    GList *rule_list = load_rule_list(NULL, CONF_DIR"/report_event.conf", /*recursion_depth:*/ 0);
+    GList *rule_list = load_rule_list(NULL, /*default conf file:*/ NULL, /*recursion_depth:*/ 0);
     state->rule_list = rule_list;
     return rule_list != NULL;
 }
@@ -693,13 +685,9 @@ int run_event_on_problem_data(struct run_event_state *state, problem_data_t *dat
     return r;
 }
 
-
-static char *_list_possible_events(struct dump_dir **dd, problem_data_t *pd, const char *dump_dir_name, const char *pfx)
+GList *list_possible_events_for_rules(struct dump_dir **dd, problem_data_t *pd, const char *dump_dir_name, const char *pfx, GList *rule_list)
 {
-    struct strbuf *result = strbuf_new();
-
-    GList *rule_list = load_rule_list(NULL, CONF_DIR"/report_event.conf", /*recursion_depth:*/ 0);
-
+    GList *result = NULL;
     unsigned pfx_len = strlen(pfx);
     for (;;)
     {
@@ -708,8 +696,8 @@ static char *_list_possible_events(struct dump_dir **dd, problem_data_t *pd, con
         char *cmd = pop_next_command(&rule_list,
                 &event_name,       /* return event_name */
                 dd,                /* match this dd... */
-                pd,                /* no problem data */
-                dump_dir_name,     /* ...or if NULL, this dirname */
+                pd,                /* ...or this problem data... */
+                dump_dir_name,     /* ...or if both are NULL, this dirname */
                 pfx, pfx_len       /* for events with this prefix */
         );
         if (!cmd)
@@ -722,57 +710,65 @@ static char *_list_possible_events(struct dump_dir **dd, problem_data_t *pd, con
 
         if (event_name)
         {
-            /* Append "EVENT\n" - only if it is not there yet */
-            unsigned e_len = strlen(event_name);
-            char *p = result->buf;
-            while (p && *p)
-            {
-                if (strncmp(p, event_name, e_len) == 0 && p[e_len] == '\n')
-                    goto skip; /* This event is already in the result */
-                p = strchr(p, '\n');
-                if (p)
-                    p++;
-            }
-            strbuf_append_strf(result, "%s\n", event_name);
- skip:
-            free(event_name);
+            /* Append "EVENT" - only if it is not there yet */
+            if (NULL == g_list_find_custom(result, event_name, (GCompareFunc)strcmp))
+                result = g_list_prepend(result, event_name);
+            else
+                free(event_name);
         }
     }
 
-    return strbuf_free_nobuf(result);
+    /* The prepend'&'reverse approach is much faster than append only */
+    return g_list_reverse(result);
+}
+
+static GList *_list_possible_events(struct dump_dir **dd, problem_data_t *pd, const char *dump_dir_name, const char *pfx)
+{
+    GList *rule_list = load_rule_list(NULL, /*default conf file:*/ NULL, /*recursion_depth:*/ 0);
+    GList *event_list = list_possible_events_for_rules(dd, pd, dump_dir_name, pfx, rule_list);
+
+    g_list_free_full(rule_list, free);
+
+    return event_list;
 }
 
 char *list_possible_events(struct dump_dir *dd, const char *dump_dir_name, const char *pfx)
 {
-    return _list_possible_events((dd ? &dd : NULL), NULL, dump_dir_name, pfx);
+    GList *event_list = _list_possible_events((dd ? &dd : NULL), NULL, dump_dir_name, pfx);
+
+    char *result = join_list(event_list, "\n");
+
+    g_list_free_full(event_list, free);
+
+    return result;
 }
 
 char *list_possible_events_problem_data(problem_data_t *pd, const char *dump_dir_name, const char *pfx)
 {
-    return _list_possible_events(NULL, pd, dump_dir_name, pfx);
+    GList *event_list = _list_possible_events(NULL, pd, dump_dir_name, pfx);
+
+    char *result = join_list(event_list, "\n");
+
+    g_list_free_full(event_list, free);
+
+    return result;
 }
 
 GList *list_possible_events_glist(const char *problem_dir_name,
                                   const char *pfx)
 {
     struct dump_dir *dd = dd_opendir(problem_dir_name, DD_OPEN_READONLY);
-    char *events = list_possible_events(dd, problem_dir_name, pfx);
-    GList *l = parse_delimited_list(events, "\n");
+    GList *events = _list_possible_events(&dd, NULL, problem_dir_name, pfx);
     dd_close(dd);
-    free(events);
 
-    return l;
+    return events;
 }
 
 GList *list_possible_events_problem_data_glist(problem_data_t *pd,
                                   const char *problem_dir_name,
                                   const char *pfx)
 {
-    char *events = list_possible_events_problem_data(pd, problem_dir_name, pfx);
-    GList *l = parse_delimited_list(events, "\n");
-    free(events);
-
-    return l;
+    return _list_possible_events(NULL, pd, problem_dir_name, pfx);
 }
 
 void run_event_stdio_alert(const char *msg, void *param)

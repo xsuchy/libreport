@@ -255,10 +255,17 @@ char *problem_data_get_content_or_die(problem_data_t *problem_data, const char *
 
 char *problem_data_get_content_or_NULL(problem_data_t *problem_data, const char *key)
 {
+    /* The only "const char *" thing can be the default value which is NULL in
+     * this case */
+    return (char *)problem_data_get_content_or_default(problem_data, key, NULL);
+}
+
+const char *problem_data_get_content_or_default(problem_data_t *problem_data, const char *key, const char *dfl)
+{
     struct problem_item *item = problem_data_get_item_or_NULL(problem_data, key);
     if (!item)
-        return NULL;
-    return item->content;
+        return dfl;
+    return (const char *)item->content;
 }
 
 

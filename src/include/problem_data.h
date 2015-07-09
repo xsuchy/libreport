@@ -104,6 +104,8 @@ static inline struct problem_item *problem_data_get_item_or_NULL(problem_data_t 
     return (struct problem_item *)g_hash_table_lookup(problem_data, key);
 }
 char *problem_data_get_content_or_NULL(problem_data_t *problem_data, const char *key);
+/* If an item holding the passed key is not found, returns dfl */
+const char *problem_data_get_content_or_default(problem_data_t *problem_data, const char *key, const char *dfl);
 /* Aborts if key is not found: */
 char *problem_data_get_content_or_die(problem_data_t *problem_data, const char *key);
 

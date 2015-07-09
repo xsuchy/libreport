@@ -99,6 +99,36 @@ GList *parse_list(const char* list)
     return l;
 }
 
+/*
+ * Join the passed list on the passed delimiter
+ *
+ * @param list GList holding (const char *) items
+ * @returns null-terminated string
+ */
+char *join_list(GList *list, const char *delimiter)
+{
+    if (list == NULL)
+        return NULL;
+
+    size_t required = 0;
+    for (GList *iter = list; iter != NULL; iter = g_list_next(iter))
+        required = strlen((char *)iter->data) + strlen(delimiter);
+
+    char *result = xmalloc(sizeof(char) * (required + 1));
+    char *ptr = result;
+    for (GList *iter = list; iter != NULL; iter = g_list_next(iter))
+    {
+        const size_t wrote = snprintf(ptr, required, "%s%s", (char *)iter->data, delimiter);
+        if (wrote < 0 || wrote == required )
+        {
+            error_msg("BUG: cannot write to pre-allocated memory: required=%zd, wrote=%zd, content='%s'",
+                        required, wrote, result);
+            abort();
+        }
+    }
+
+    return result;
+}
 
 void list_free_with_free(GList *list)
 {
