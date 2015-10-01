@@ -28,6 +28,7 @@ int main(int argc, char **argv)
     assert(strcmp(itm->content, TEST_CONTENTS) == 0);
     assert(itm->flags == TEST_FLAGS);
     assert(itm->size == PROBLEM_ITEM_UNINITIALIZED_SIZE);
+    assert(itm->file_descriptor == PROBLEM_ITEM_UNINITIALIZED_FD);
 
     problem_data_free(data);
 
@@ -62,8 +63,61 @@ int main(int argc, char **argv)
     assert(strcmp(itm->content, TEST_CONTENTS) == 0);
     assert(itm->flags == TEST_FLAGS);
     assert(itm->size == strlen(TEST_CONTENTS));
+    assert(itm->file_descriptor == PROBLEM_ITEM_UNINITIALIZED_FD);
 
     problem_data_free(data);
+
+    return 0;
+}
+]])
+
+## -------------------------------- ##
+## problem_data_add_file_descriptor ##
+## -------------------------------- ##
+
+AT_TESTFUN([problem_data_add_file_descriptor],
+[[
+#include "problem_data.h"
+#include "internal_libreport.h"
+#include <assert.h>
+#include <errno.h>
+
+#define str(l) #l
+
+#define TEST_NAME "services"
+#define TEST_FLAGS (CD_FLAG_BIN | CD_FLAG_FD)
+
+int main(int argc, char **argv)
+{
+    g_verbose = 3;
+
+    problem_data_t *data = problem_data_new();
+
+    int fd = open("/etc/services", O_RDONLY);
+    assert(fd >= 0 || !"Failed to open /etc/services");
+
+    char fd_self_path[sizeof("/proc/self/fd/"str(INT_MAX))];
+    int r = snprintf(fd_self_path, sizeof(fd_self_path), "/proc/self/fd/%d", fd);
+    assert(r < sizeof(fd_self_path) || !"Truncated fd self path");
+
+    errno = 0;
+    struct stat buf;
+    r = stat(fd_self_path, &buf);
+    assert((r == 0 && errno == 0) || !"FD proc self path is invalid");
+
+    problem_data_add_file_descriptor(data, TEST_NAME, fd);
+    struct problem_item *itm = problem_data_get_item_or_NULL(data, TEST_NAME);
+
+    assert(strcmp(itm->content, fd_self_path) == 0);
+    assert(itm->flags == TEST_FLAGS);
+    assert(itm->size == PROBLEM_ITEM_UNINITIALIZED_SIZE);
+    assert(itm->file_descriptor == fd);
+
+    problem_data_free(data);
+
+    errno = 0;
+    r = stat(fd_self_path, &buf);
+    assert((r < 0 && errno == ENOENT) || !"FD has not been closed");
 
     return 0;
 }
@@ -134,6 +188,14 @@ int main(int argc, char **argv)
             assert(current_size != PROBLEM_ITEM_UNINITIALIZED_SIZE);
             assert(current_size == old_size);
         }
+    }
+
+    {
+        int fd = open("/etc/services", O_RDONLY);
+        assert(fd >= 0 || !"Failed to open /etc/services");
+        struct problem_item *itm = problem_data_add_file_descriptor(data, "3", fd);
+        size_t current_size = PROBLEM_ITEM_UNINITIALIZED_SIZE;
+        assert(problem_item_get_size(itm, &current_size) == -ENOTSUP);
     }
 
     problem_data_free(data);

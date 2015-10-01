@@ -24,6 +24,8 @@ static void free_problem_item(void *ptr)
     {
         struct problem_item *item = (struct problem_item *)ptr;
         free(item->content);
+        if (item->file_descriptor != PROBLEM_ITEM_UNINITIALIZED_FD)
+            close(item->file_descriptor);
         free(item);
     }
 }
@@ -65,6 +67,10 @@ int problem_item_get_size(struct problem_item *item, unsigned long *size)
         *size = item->size = strlen(item->content);
         return 0;
     }
+
+    /* Do not report size of file descriptors */
+    if (item->flags & CD_FLAG_FD)
+        return -ENOTSUP;
 
     /* else if (item->flags & CD_FLAG_BIN) */
 
@@ -188,6 +194,28 @@ void problem_data_add_current_process_data(problem_data_t *pd)
     }
 }
 
+static struct problem_item *problem_item_new(
+                char *content,
+                unsigned flags,
+                unsigned long size,
+                int file_descriptor)
+{
+    struct problem_item *item = (struct problem_item *)xzalloc(sizeof(*item));
+    item->content = content;
+    item->flags = flags;
+    item->size = size;
+    item->file_descriptor = file_descriptor;
+
+    return item;
+}
+
+static inline void problem_data_add_problem_item(problem_data_t *problem_data,
+                const char *name,
+                struct problem_item *item)
+{
+    g_hash_table_replace(problem_data, xstrdup(name), item);
+}
+
 struct problem_item *problem_data_add_ext(problem_data_t *problem_data,
                 const char *name,
                 const char *content,
@@ -199,11 +227,9 @@ struct problem_item *problem_data_add_ext(problem_data_t *problem_data,
     if (!(flags & CD_FLAG_ISEDITABLE))
         flags |= CD_FLAG_ISNOTEDITABLE;
 
-    struct problem_item *item = (struct problem_item *)xzalloc(sizeof(*item));
-    item->content = xstrdup(content);
-    item->flags = flags;
-    item->size = size;
-    g_hash_table_replace(problem_data, xstrdup(name), item);
+    char *item_content = xstrdup(content);
+    struct problem_item *const item = problem_item_new(item_content, flags, size, PROBLEM_ITEM_UNINITIALIZED_FD);
+    problem_data_add_problem_item(problem_data, name, item);
 
     return item;
 }
@@ -242,6 +268,16 @@ void problem_data_add_file(problem_data_t *pd, const char *name, const char *pat
     problem_data_add(pd, name ? name : get_filename(path), path, CD_FLAG_BIN);
 }
 
+struct problem_item *problem_data_add_file_descriptor(problem_data_t *pd, const char *name, int fd)
+{
+    char *const content = xasprintf("/proc/self/fd/%d", fd);
+    struct problem_item *const item = problem_item_new(content,
+                                                       CD_FLAG_BIN | CD_FLAG_FD,
+                                                       PROBLEM_ITEM_UNINITIALIZED_SIZE,
+                                                       fd);
+    problem_data_add_problem_item(pd, name, item);
+    return item;
+}
 
 char *problem_data_get_content_or_die(problem_data_t *problem_data, const char *key)
 {

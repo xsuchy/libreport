@@ -44,9 +44,15 @@ enum {
      * to a bug report etc.
      */
     CD_FLAG_BIGTXT        = (1 << 6),
+    /* If this bit is up the file_descriptor is always a valid file descriptor.
+     * If this bit up CD_FLAG_BIN is up too.
+     * These items have content set to '/proc/self/fd/%d'.
+     */
+    CD_FLAG_FD            = (1 << 7),
 };
 
 #define PROBLEM_ITEM_UNINITIALIZED_SIZE ((unsigned long)-1)
+#define PROBLEM_ITEM_UNINITIALIZED_FD (-1)
 
 struct problem_item {
     char    *content;
@@ -57,11 +63,20 @@ struct problem_item {
     int      allowed_by_reporter;  /* 0 "no", 1 "yes" */
     int      default_by_reporter;  /* 0 "no", 1 "yes" */
     int      required_by_reporter; /* 0 "no", 1 "yes" */
+
+    /* If file_descriptor does not hold PROBLEM_ITEM_UNINITIALIZED_FD, then
+     * the value can be used to get contents of the element.
+     */
+    int      file_descriptor;
 };
 typedef struct problem_item problem_item;
 
 char *problem_item_format(struct problem_item *item);
 
+/* Computes item size and returns it through the argument size.
+ *
+ * @return 0 on success. -errno on failure. -ENOTSUP for items of CD_FLAG_FD type.
+ */
 int problem_item_get_size(struct problem_item *item, unsigned long *size);
 
 /* In-memory problem data structure and accessors */
@@ -98,6 +113,14 @@ void problem_data_add_text_editable(problem_data_t *problem_data,
                 const char *content);
 /* "name" can be NULL: */
 void problem_data_add_file(problem_data_t *pd, const char *name, const char *path);
+
+/* Creates a new entry of (CD_FLAG_BIN | CD_FLAG_FD) type.
+ * Takes ownership of the descriptor.
+ * The content will be set to "/proc/self/fd/$fd".
+ */
+struct problem_item *problem_data_add_file_descriptor(problem_data_t *pd,
+                const char *name,
+                int fd);
 
 static inline struct problem_item *problem_data_get_item_or_NULL(problem_data_t *problem_data, const char *key)
 {

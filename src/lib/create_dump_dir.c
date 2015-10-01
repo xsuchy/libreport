@@ -157,7 +157,10 @@ int save_problem_data_in_dump_dir(struct dump_dir *dd, problem_data_t *problem_d
 
         if (value->flags & CD_FLAG_BIN)
         {
-            dd_copy_file(dd, name, value->content);
+            if (value->file_descriptor != PROBLEM_ITEM_UNINITIALIZED_FD)
+                dd_copy_file(dd, name, value->content);
+            else
+                dd_copy_fd(dd, name, value->file_descriptor, 0, 0);
             continue;
         }
 
