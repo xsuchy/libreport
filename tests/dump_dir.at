@@ -1372,3 +1372,54 @@ int main(void)
     return 0;
 }
 ]])
+
+## --------------- ##
+## dd_compute_size ##
+## --------------- ##
+
+AT_TESTFUN([dd_compute_size],
+[[
+#include "testsuite.h"
+
+TS_MAIN
+{
+    char template[] = "/tmp/XXXXXX/dump_dir";
+
+    char *last_slash = strrchr(template, '/');
+    *last_slash = '\0';
+
+    if (mkdtemp(template) == NULL) {
+        perror("mkdtemp()");
+        return EXIT_FAILURE;
+    }
+
+    struct dump_dir *dd = dd_create(template, (uid_t)-1, 0640);
+
+    off_t expected = 0;
+    struct string_pair {
+        const char *first;
+        const char *second;
+        } pairs [] = {
+        { .first = "type", .second = "attestsuite" },
+        { .first = "analyzer", .second = "dd_compute_size" },
+        { .first = "time", .second = "1" },
+        { .first = "first", .second = "second" },
+        { .first = "foo", .second = "blah" },
+        { .first = "moo", .second = "cow" },
+        { .first = "rooster", .second = "cock-a-doodle-doo" },
+        { .first = "frog", .second = "ribbit" },
+        { .first = "pig", .second = "oink" },
+    };
+
+    for (size_t i = 0; i < ARRAY_SIZE(pairs); ++i)
+    {
+        dd_save_text(dd, pairs[i].first, pairs[i].second);
+        expected += strlen(pairs[i].second);
+        assert(expected >= 0);
+    }
+
+    TS_ASSERT_SIGNED_EQ(dd_compute_size(dd, 0), expected);
+}
+TS_RETURN_MAIN
+
+]])
