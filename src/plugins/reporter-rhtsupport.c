@@ -29,17 +29,13 @@
 #define PROBLEM_REPORT_TEMPLATE \
     "%summary:: [abrt] [[%pkg_name%]][[: %crash_function%()]][[: %reason%]][[: TAINTED %tainted_short%]]\n" \
     "\n" \
-    "Description of problem:: %bare_comment\n" \
-    "\n" \
+    "Description of problem:: %bare_comment\n\n" \
     "Additional info::" \
     "    count,reason,package,pkg_vendor,cmdline,executable,%reporter\n" \
     "\n" \
-    "How reproducible:: %bare_reproducible\n" \
-    "\n" \
-    "Steps to reproduce:: %bare_reproducer\n" \
-    "\n" \
-    "Truncated backtrace:: %bare_%short_backtrace\n" \
-    "\n" \
+    "How reproducible:: %bare_reproducible\n\n" \
+    "Steps to reproduce:: %bare_reproducer\n\n" \
+    "Truncated backtrace:: %bare_%short_backtrace\n\n" \
     "Other report identifiers:: %bare_reported_to\n"
 
 #define ABRT_ELEMENTS_KB_ARTICLE "https://access.redhat.com/articles/2134281"
